@@ -1,6 +1,6 @@
 // Таблица матча: живая, пока игра идёт, и итоговая после неё.
 // Одна и та же на странице лобби, в слое для OBS и в прошедших играх на странице ведущего.
-import { esc, heroImg, heroName, fmt, plural, clock } from './ui.js?v=20261116035856';
+import { esc, heroImg, heroName, fmt, plural, clock, dateRu, modal, head } from './ui.js?v=20261116041808';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 // колонки с числами; opt — на телефоне прячутся
@@ -22,7 +22,7 @@ export function scoreHtml(t, o) {
     const sub = r.hero ? `${esc(heroName(r.hero))}${r.lvl ? ` · ${r.lvl} ур.` : ''}` : 'выбирает героя';
     const cells = COLS.map(([k, , cls]) => `<span class="sc ${cls || ''} ${r[k] && r[k] === max[k] ? 'best' : ''}"><b>${fmt(r[k] || 0)}</b><i style="width:${Math.round(100 * (r[k] || 0) / max[k])}%"></i></span>`).join('');
     return `<div class="srow ${r.team} ${r.dead && t.live ? 'dead' : ''} ${r.uid && r.uid === o.me ? 'mine' : ''}"${r.uid ? ` data-uid="${esc(r.uid)}"` : ''}>
-      <span class="sp">${heroImg(r.hero, 'm')}<span class="who"><b>${esc(name)}</b><span class="sub">${sub}</span></span></span>
+      <span class="sp">${heroImg(r.hero, 'm')}<span class="who"><b>${esc(name)}${r.mvp ? `<span class="tag mvp m${r.mvp}" title="${r.mvp === 1 ? 'Лучший игрок матча — так отметила сама игра' : `${r.mvp}-е место среди лучших игроков матча`}">${r.mvp === 1 ? 'MVP' : 'топ-' + r.mvp}</span>` : ''}</b><span class="sub">${sub}</span></span></span>
       <span class="kda"><b>${r.k || 0}</b><em>/</em><b class="dth">${r.d || 0}</b><em>/</em><b>${r.a || 0}</b></span>${cells}</div>`;
   };
 
@@ -46,4 +46,26 @@ export function scoreHtml(t, o) {
   return `<section class="card score ${t.live ? 'live' : ''}"><header><h2>Таблица матча</h2>${stamp}</header>
     <div class="shead"><span></span><span>K / D / A</span>${COLS.map(([, title, cls]) => `<span class="${cls || ''}">${title}</span>`).join('')}</div>
     ${team('a')}${team('b')}</section>`;
+}
+
+// ---- прошедшие игры: строка в списке и окно с таблицей
+const has = (m) => !!(m && m.table && m.table.rows && m.table.rows.length);
+// день и время, когда игра закончилась: в один вечер игр бывает несколько
+const when = (m) => `${dateRu(m.at)}, ${new Date(m.at * 1000).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}${m.round > 1 ? ' · игра ' + m.round : ''}`;
+
+export function gameRow(m, i) {
+  const kills = (k) => m.table.rows.filter((r) => r.team === k).reduce((n, r) => n + (r.k || 0), 0);
+  return `<button class="grow ${m.winner}" data-game="${i}">
+    <span class="gw"><span class="tn">${TEAM[m.winner]} победил</span>${has(m) ? `<b>${kills('a')} : ${kills('b')}</b>` : ''}</span>
+    <span class="gd">${when(m)}${m.duration ? ` · шла ${clock(m.duration)}` : ''}${has(m) ? '' : ' · без таблицы'}</span></button>`;
+}
+
+export function openGame(m) {
+  const names = (k) => (m.teams && m.teams[k] ? m.teams[k].map((p) => esc(p.name)).join(', ') : '');
+  const body = has(m) ? scoreHtml(Object.assign({}, m.table, { live: false }), { win: m.winner })
+    : `<p class="dim">Таблицы этой игры нет: её сайт ведёт только у матчей, за которыми смог проследить.</p>
+       <p><b class="w a">Янтарь:</b> ${names('a')}</p><p><b class="w b">Сапфир:</b> ${names('b')}</p>`;
+  modal(`${head(when(m))}<div class="body gamebody">
+    <p class="gsum"><b class="w ${m.winner}">Победил ${TEAM[m.winner]}</b>${m.duration ? ` · матч шёл <span class="mono">${clock(m.duration)}</span>` : ''}${m.title ? ` · ${esc(m.title)}` : ''}</p>
+    ${body}</div>`, { wide: true });
 }

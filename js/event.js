@@ -1,13 +1,13 @@
 // Страница лобби. Правило одно: один шаг — одна главная кнопка.
 // Сверху «сцена»: что сейчас происходит и что нажать именно мне (игроку, капитану или ведущему).
 // Под ней комната: места капитанов, список игроков, команды, драфт героев.
-import { API, BASE, call, meta } from './api.js?v=20261116035856';
+import { API, BASE, call, meta } from './api.js?v=20261116041808';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, clock, toast, oops, modal, head, closeModal,
   confirmHold, copy, rankPicker, pickedRank, ICON, morph,
-} from './ui.js?v=20261116035856';
-import { user, login, linkSteam, onUser } from './auth.js?v=20261116035856';
-import { scoreHtml } from './score.js?v=20261116035856';
+} from './ui.js?v=20261116041808';
+import { user, login, linkSteam, onUser } from './auth.js?v=20261116041808';
+import { scoreHtml, gameRow, openGame } from './score.js?v=20261116041808';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 const TEAM_GEN = { a: 'Янтаря', b: 'Сапфира' };
@@ -88,8 +88,9 @@ export function mountEvent(root, id, opt) {
     next.lobby_err = next.lobby_err || null;
     st = next;
     skew = next.now - Date.now() / 1000;
-    if (!hostInfo && next.host.login) {
-      hostInfo = {};
+    const fin = (s) => !!(s && s.match && s.match.table && !s.match.table.live);
+    if (next.host.login && (!hostInfo || (prev && (prev.phase !== next.phase || prev.round !== next.round || fin(prev) !== fin(next))))) {
+      hostInfo = hostInfo || {};
       call('/h/' + next.host.login).then((h) => { hostInfo = h; render(); }).catch(() => {});
     }
     const uid = meId();
@@ -863,6 +864,14 @@ export function mountEvent(root, id, opt) {
         <p class="dim">Ведущий управляет лобби вместе с тобой. Кастер видит код лобби и заходит в игру наблюдателем.</p></div>` : ''}</section>`;
   }
 
+  // Прошедшие игры этого ведущего: нажал — открылась таблица матча.
+  function pastHtml() {
+    const list = (hostInfo && hostInfo.matches) || [];
+    if (!list.length) return '';
+    return `<section class="card past"><header><h2>Прошедшие игры</h2><span class="dim num">${list.length}</span></header>
+      <div class="glist">${list.map(gameRow).join('')}</div></section>`;
+  }
+
   function hostInfoHtml() {
     const h = hostInfo || {};
     const parts = [];
@@ -901,7 +910,7 @@ export function mountEvent(root, id, opt) {
     if (opt.obs) html = obsHtml();
     else {
       html = `${headHtml()}${st.note ? `<div class="note">${esc(st.note)}</div>` : ''}
-        <div class="lobby"><div class="lmain">${stageHtml()}${roomHtml()}</div><aside class="lside">${staffHtml()}${hostInfoHtml()}</aside></div>`;
+        <div class="lobby"><div class="lmain">${stageHtml()}${roomHtml()}</div><aside class="lside">${staffHtml()}${pastHtml()}${hostInfoHtml()}</aside></div>`;
       document.title = (shown && shown.now ? '● ' + shown.title + ' — ' : '') + pageTitle;       // «твой ход» видно и с другой вкладки
     }
     if (html !== lastHtml) {
@@ -1251,6 +1260,8 @@ export function mountEvent(root, id, opt) {
   };
 
   function onClick(e) {
+    const gm = e.target.closest('[data-game]');
+    if (gm) { const m = ((hostInfo && hostInfo.matches) || [])[+gm.dataset.game]; if (m) openGame(m); return; }
     const a = e.target.closest('[data-act]');
     if (a) {
       e.preventDefault();

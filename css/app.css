@@ -669,9 +669,27 @@ body.obs::before { display: none; }
 .sc.best i { opacity: 1; }
 .srow.dead .hero { filter: grayscale(1); opacity: .4; }
 .score.live .sclock { color: #ff8a8a; }
-.scorebody { padding: 0 0 6px; }
-.scorebody .score { margin: 0; background: transparent; box-shadow: none; }
-.scorebody .score > header { display: none; }
+.tag.mvp { margin-left: 7px; padding: 1px 6px; font: 700 10.5px/1.5 var(--mono); letter-spacing: .04em; vertical-align: 1px; color: #1a1300;
+  background: linear-gradient(100deg, #ffd978, #f0a92e); }
+.tag.mvp.m2, .tag.mvp.m3 { color: var(--dim); background: var(--glass2); font-weight: 600; }
+/* прошедшие игры: строка — кнопка, открывает таблицу матча */
+.past > header, .glist { padding-bottom: 0; }
+.glist { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; padding: 8px 6px 8px; max-height: 372px; overflow: auto; }
+.grow { display: grid; grid-template-columns: minmax(0, 1fr); gap: 3px; padding: 9px 12px; border: 0; border-radius: 11px; background: transparent; color: inherit;
+  font: inherit; text-align: left; cursor: pointer; }
+.grow:hover { background: rgba(255, 255, 255, .06); }
+.grow .gw { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.grow .tn { font-weight: 600; font-size: 14.5px; }
+.grow.a .tn { color: var(--amber-hi); }
+.grow.b .tn { color: var(--sapph-hi); }
+.grow .gw b { font: 600 13.5px/1 var(--mono); white-space: nowrap; }
+.grow .gd { font-size: 12.5px; color: var(--mute); }
+.sheet:has(.gamebody) { max-width: 940px; }
+.gamebody .gsum { font-size: 15px; color: var(--dim); }
+.gamebody .w.a { color: var(--amber-hi); }
+.gamebody .w.b { color: var(--sapph-hi); }
+.gamebody .score { margin: 0 -18px; padding-bottom: 0; background: transparent; box-shadow: none; border-radius: 0; }
+.gamebody .score > header { display: none; }
 .obsbox .score { margin: 0; }
 
 /* окна */

@@ -1,13 +1,13 @@
 // Лобби: маршруты, шапка, главная, профиль, страница ведущего.
-import { call, meta, loadMeta, session } from './api.js?v=20261116035856';
+import { call, meta, loadMeta, session } from './api.js?v=20261116041808';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, toast, oops, modal, head, confirmHold,
   ICON, dateRu,
-} from './ui.js?v=20261116035856';
-import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116035856';
-import { mountEvent } from './event.js?v=20261116035856';
-import { profileBlocks } from './profile.js?v=20261116035856';
-import { scoreHtml } from './score.js?v=20261116035856';
+} from './ui.js?v=20261116041808';
+import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116041808';
+import { mountEvent } from './event.js?v=20261116041808';
+import { profileBlocks } from './profile.js?v=20261116041808';
+import { gameRow, openGame } from './score.js?v=20261116041808';
 
 const view = $('#view');
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
@@ -202,15 +202,6 @@ async function userPage(login, fresh) {
 }
 
 // ---------------------------------------------------------------- страница ведущего
-function matchRow(m, i) {
-  const names = (k) => (m.teams && m.teams[k] ? m.teams[k].map((p) => esc(p.name)).join(', ') : '');
-  const w = m.winner;
-  const has = m.table && m.table.rows && m.table.rows.length;
-  return `<div class="mrow"><span class="dim d">${dateRu(m.at)}${m.round > 1 ? ' · игра ' + m.round : ''}</span>
-    <span><span class="w ${w}">Победил ${TEAM[w]}</span><span class="dim"> — ${names(w)}</span><br><span class="mute" style="font-size:13px">против: ${names(w === 'a' ? 'b' : 'a')}</span></span>
-    ${has ? `<button class="btn sm" data-hp="table" data-i="${i}">Таблица</button>` : '<span></span>'}</div>`;
-}
-
 async function hostPage(login, fresh, obs) {
   if (!/^[a-z0-9_]{2,30}$/.test(login)) throw new Error('Такой страницы нет');
   view.innerHTML = obs ? '' : '<div class="card empty">Загружаю…</div>';
@@ -239,16 +230,14 @@ async function hostPage(login, fresh, obs) {
         ${h.links.length ? `<section class="card"><header><h2>Ссылки</h2></header><div class="body"><div class="links">${h.links.map((l) => `<a href="${esc(l.url)}" target="_blank" rel="noopener nofollow">${esc(l.title)}</a>`).join('')}</div></div></section>` : ''}
         ${h.rules ? `<section class="card"><header><h2>Правила</h2></header><div class="body"><div class="rules">${esc(h.rules)}</div></div></section>` : ''}
       </div><section class="card"><header><h2>Прошедшие игры</h2><span class="dim num">${h.matches.length}</span></header>
-        <div class="body" style="padding:10px 0 0">${h.matches.length ? `<div style="border-top:1px solid var(--line)">${h.matches.map(matchRow).join('')}</div>` : '<div class="empty">Игр пока не было</div>'}</div></section></div>`;
+        ${h.matches.length ? `<div class="glist">${h.matches.map(gameRow).join('')}</div>` : '<div class="empty">Игр пока не было</div>'}</section></div>`;
     view.onclick = async (e) => {
+      const gm = e.target.closest('[data-game]');
+      if (gm) { const m = h.matches[+gm.dataset.game]; if (m) openGame(m); return; }
       const b = e.target.closest('[data-hp]');
       if (!b) return;
       if (b.dataset.hp === 'create') { try { await call('/events', {}); await draw(); } catch (err) { oops(err); } }
       if (b.dataset.hp === 'edit') editHost(h, () => { draw().catch(oops); });
-      if (b.dataset.hp === 'table') {
-        const m = h.matches[+b.dataset.i];
-        if (m && m.table) modal(`${head(`${dateRu(m.at)} · победил ${TEAM[m.winner]}`)}<div class="body scorebody">${scoreHtml(Object.assign({}, m.table, { live: false }), { win: m.winner })}</div>`, { wide: true });
-      }
     };
   };
   await draw();
