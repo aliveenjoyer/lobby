@@ -1,13 +1,13 @@
 // Страница лобби. Правило одно: один шаг — одна главная кнопка.
 // Сверху «сцена»: что сейчас происходит и что нажать именно мне (игроку, капитану или ведущему).
 // Под ней комната: места капитанов, список игроков, команды, драфт героев.
-import { API, BASE, call, meta } from './api.js?v=20261116043100';
+import { API, BASE, call, meta } from './api.js?v=20261116043248';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, clock, toast, oops, modal, head, closeModal,
   confirmHold, copy, rankPicker, pickedRank, ICON, morph,
-} from './ui.js?v=20261116043100';
-import { user, login, linkSteam, onUser } from './auth.js?v=20261116043100';
-import { scoreHtml, gameRow, openGame } from './score.js?v=20261116043100';
+} from './ui.js?v=20261116043248';
+import { user, login, linkSteam, onUser } from './auth.js?v=20261116043248';
+import { scoreHtml, gameRow, openGame } from './score.js?v=20261116043248';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 const TEAM_GEN = { a: 'Янтаря', b: 'Сапфира' };
@@ -729,6 +729,15 @@ export function mountEvent(root, id, opt) {
       ${q ? `<section class="card plist"><header><h2>Очередь</h2><span class="dim num">${st.queue.length}</span></header><div class="pgrid">${q}</div></section>` : ''}`;
   }
 
+  // Составы команд двумя короткими полосками: имя и аватар, без рангов — чтобы помещались над доской драфта.
+  function rosterStrip() {
+    const side = (k) => `<div class="rside ${k}"><span class="tn">${TEAM[k]}</span>${st.teams[k].map((u, i) => {
+      const c = card(u);
+      return `<button class="rchip ${u === meId() && !opt.obs ? 'mine' : ''}" data-uid="${esc(u)}">${ava(c)}<b>${esc(c.name)}</b>${i === 0 ? `<span class="tag cap ${k}">капитан</span>` : ''}</button>`;
+    }).join('')}</div>`;
+    return `<div class="roster">${side('a')}${side('b')}</div>`;
+  }
+
   function bansRow() {
     const d = st.draft;
     const bans = d && d.done ? d.bans.filter(Boolean) : [];
@@ -747,8 +756,9 @@ export function mountEvent(root, id, opt) {
     const ph = st.phase;
     if (!st.teams) return caps() ? (ph === 'closed' ? '' : capsBlock() + playersBlock()) : seatsBlock();
     const d = st.draft;
-    // во время драфта под доской — составы команд: люди должны видеть, кто с кем (просьба владельца на живой игре 16.11)
-    if (ph === 'teams' && d && !d.done) return `${draftHtml()}<div class="arena two">${teamCol('a')}${teamCol('b')}</div>`;
+    // во время драфта составы команд видны сразу, над доской (и подробно — под ней): люди должны видеть, кто с кем
+    // (просьба владельца на живой игре 16.11: «нажал драфт героев, и всё, нет списка команд»)
+    if (ph === 'teams' && d && !d.done) return `${rosterStrip()}${draftHtml()}<div class="arena two">${teamCol('a')}${teamCol('b')}</div>`;
     const bar = st.sums && !opt.obs && !caps() ? `<div class="sumbar"><span>Баланс команд: <b>${esc(st.sums.words)}</b></span>
       ${st.dirty ? '<span class="chip warn">состав изменился</span>' : `<span class="num">разница в силе ${fmt(st.sums.diff)}</span>`}</div>` : '';
     const mid = caps() && (ph === 'pick' || (st.queue.length && ['teams', 'lobby'].includes(ph)));
@@ -886,7 +896,7 @@ export function mountEvent(root, id, opt) {
   // Слой для OBS: без кнопок и служебных пометок.
   function obsHtml() {
     const d = st.draft;
-    if (d && st.phase === 'teams') return `<div class="obsbox wide">${draftHtml()}</div>`;
+    if (d && st.phase === 'teams') return `<div class="obsbox wide">${d.done ? '' : rosterStrip()}${draftHtml()}</div>`;
     let line = esc(st.title);
     if (st.match && st.match.result) line = `Победил ${TEAM[st.match.result.winner]}`;
     else if (st.phase === 'pick' && st.pick && st.pick.turn) {

@@ -635,6 +635,23 @@ body.obs::before { display: none; }
 /* во время голосования в строке игрока главное — имя и кнопка «Голос» */
 .people.voting .tag:not(.cap) { display: none; }
 
+/* составы команд полосками над доской драфта */
+.roster { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+.rside { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 12px 14px; border-radius: 16px; background: var(--glass); }
+.rside.a { background: radial-gradient(360px 120px at 0 0, rgba(212, 134, 11, .13), transparent 70%), var(--glass); }
+.rside.b { background: radial-gradient(360px 120px at 100% 0, rgba(77, 117, 195, .17), transparent 70%), var(--glass); }
+.rside .tn { flex: 0 0 100%; margin-bottom: 2px; font-weight: 600; font-size: 14.5px; }
+.rside.a .tn { color: var(--amber-hi); }
+.rside.b .tn { color: var(--sapph-hi); }
+.rchip { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 11px 0 5px; border: 0; border-radius: 999px; background: var(--glass2);
+  color: inherit; font: inherit; font-size: 14px; cursor: pointer; }
+.rchip:hover { background: rgba(255, 255, 255, .13); }
+.rchip .ava { width: 22px; height: 22px; font-size: 11px; }
+.rchip b { max-width: 170px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rchip.mine { outline: 2px solid #fff; outline-offset: -2px; }
+.rchip .tag { margin: 0; }
+@media (max-width: 640px) { .roster { grid-template-columns: minmax(0, 1fr); gap: 8px; } }
+
 /* таблица матча: живая и итоговая. Строки без разделителей; под каждым числом — тонкая полоска доли от лучшего в колонке */
 .score { margin-bottom: 16px; padding-bottom: 10px; }
 .score > header { display: flex; align-items: center; gap: 10px; padding: 15px 18px 2px; }
