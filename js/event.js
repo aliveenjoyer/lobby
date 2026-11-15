@@ -1,12 +1,12 @@
 // Страница лобби. Правило одно: один шаг — одна главная кнопка.
 // Сверху «сцена»: что сейчас происходит и что нажать именно мне (игроку, капитану или ведущему).
 // Под ней комната: места капитанов, список игроков, команды, драфт героев.
-import { API, BASE, call, meta } from './api.js?v=20261116023039';
+import { API, BASE, call, meta } from './api.js?v=20261116024452';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, clock, toast, oops, modal, head, closeModal,
   confirmHold, copy, rankPicker, pickedRank, ICON, morph,
-} from './ui.js?v=20261116023039';
-import { user, login, linkSteam, onUser } from './auth.js?v=20261116023039';
+} from './ui.js?v=20261116024452';
+import { user, login, linkSteam, onUser } from './auth.js?v=20261116024452';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 const TEAM_GEN = { a: 'Янтаря', b: 'Сапфира' };
@@ -184,7 +184,7 @@ export function mountEvent(root, id, opt) {
   }
   function violations() {
     const r = st.match && st.match.result;
-    const viol = ((r && r.violations) || []).map((v) => `<div>${nm(v.uid)} сыграл на ${esc(heroName(v.hero))}: ${v.why === 'banned' ? 'герой был забанен' : 'по драфту должен был взять ' + esc(heroName(v.want))}</div>`).join('');
+    const viol = ((r && r.violations) || []).map((v) => `<div>${nm(v.uid)} сыграл на ${esc(heroName(v.hero))}: ${v.why === 'banned' ? 'герой был забанен' : v.why === 'notpicked' ? 'этого героя команда не брала' : 'при разборе героев занял ' + esc(heroName(v.want))}</div>`).join('');
     return viol ? `<div class="viol">${viol}</div>` : '';
   }
 
@@ -252,6 +252,8 @@ export function mountEvent(root, id, opt) {
       if (host || w === 'seat' || roleOf(uid)) {              // кастеру код тоже виден: он заходит наблюдателем
         g.title = 'Лобби в игре создано. Заходите';
         g.text = `Открой Deadlock, зайди в кастомные матчи и введи код.${k ? ` Твоя команда — «${TEAM[k]}».` : roleOf(uid) === 'caster' ? ' Ты кастер: заходи наблюдателем.' : ''}`;
+        const dd = st.draft;
+        if (dd && dd.done && dd.mode === 'full' && k) g.text += dd.take[uid] ? ` Твой герой — ${esc(heroName(dd.take[uid]))}.` : ' Не забудь занять героя своей команды ниже.';
         g.below = codeBox();
         g.now = !host;
         if (host && bot) {
@@ -273,20 +275,24 @@ export function mountEvent(root, id, opt) {
       const d = st.draft;
       if (d && !d.done) {
         const step = d.steps[d.i];
-        const actor = step.t === 'ban' ? st.teams[step.team][0] : step.uid;
+        const actor = st.teams[step.team][0];                 // и банит, и берёт героев капитан команды
+        const over = d.over != null;
         g.tone = step.team;
         if (actor && actor === uid) {
           g.now = true;
-          g.title = step.t === 'ban' ? 'Твой ход: забань героя' : 'Твой ход: выбери героя';
-          g.text = `Нажми на героя в сетке ниже, потом на кнопку «${step.t === 'ban' ? 'Забанить' : 'Взять'}». Не успеешь — ${step.t === 'ban' ? 'бан пропадёт' : 'сайт выберет героя за тебя'}.`;
+          g.title = step.t === 'ban' ? 'Твой ход: забань героя' : 'Твой ход: возьми героя команде';
+          g.text = `Нажми на героя в сетке ниже, потом на кнопку «${step.t === 'ban' ? 'Забанить' : 'Взять'}». ${over ? 'Идёт дополнительное время твоей команды' : 'Выйдет время хода — пойдёт дополнительное время команды'}: кончится и оно — ${step.t === 'ban' ? 'бан пропадёт' : 'герой возьмётся случайный'}.`;
         } else {
           g.title = 'Драфт героев';
-          g.text = `${step.t === 'ban' ? 'Банит' : 'Выбирает героя'} ${actor ? nm(actor) : 'ведущий'}, команда «${TEAM[step.team]}».${host ? ' Можешь сходить за любого игрока: выбери героя в сетке.' : ''}`;
+          g.text = `${step.t === 'ban' ? 'Банит' : 'Берёт героя'} команда «${TEAM[step.team]}»${actor ? `, капитан ${nm(actor)}` : ''}.${over ? ' Идёт её дополнительное время.' : ''}${host ? ' Можешь сходить за капитана: выбери героя в сетке.' : ' Кто на ком играет, команды решат после драфта.'}`;
         }
         if (host) g.quiet = [Q('draft_off', 'Сбросить драфт')];
         return g;
       }
       const needDraft = s.draft !== 'none' && !d;
+      const sharing = !!d && d.done && d.mode === 'full';       // драфт окончен: игроки разбирают героев своей команды
+      const got = sharing ? st.seats.filter((u) => d.take[u]).length : 0;
+      const mine = sharing && uid ? d.take[uid] : null;
       if (host) {
         const chk = st.check;
         if (st.dirty && !caps()) {
@@ -295,11 +301,11 @@ export function mountEvent(root, id, opt) {
           g.btns = [P('balance', 'Поделить заново')];
         } else if (needDraft) {
           g.title = 'Команды собраны';
-          g.text = `Дальше драфт героев: по ${s.bans} ${plural(s.bans, 'бану', 'бана', 'банов')} с каждой стороны${s.draft === 'full' ? ', потом игроки по одному берут героев' : ''}.`;
+          g.text = `Дальше драфт героев: по ${s.bans} ${plural(s.bans, 'бану', 'бана', 'банов')} с каждой стороны${s.draft === 'full' ? ', потом капитаны по одному берут героев командам' : ''}.`;
           g.btns = [P('draft', 'Начать драфт')];
         } else {
           g.title = d ? 'Драфт окончен' : 'Команды собраны';
-          g.text = 'Создай лобби в игре: бот откроет кастомную игру в Deadlock и выдаст код. Его увидят только игроки команд.';
+          g.text = `${sharing ? `Игроки разбирают героев: заняли ${got} из ${st.seats.length}.${k && !mine ? ' Займи героя и ты — нажми на него ниже.' : ''} ` : ''}Создай лобби в игре: бот откроет кастомную игру в Deadlock и выдаст код. Его увидят только игроки команд.`;
           g.btns = [making ? P('lobby_bot', '<span class="spin"></span><span>Создаю лобби…</span>', ' disabled') : P('lobby_bot', 'Создать лобби в игре'),
             S('lobby_manual', 'Ввести код вручную')];
         }
@@ -309,9 +315,18 @@ export function mountEvent(root, id, opt) {
         return g;
       }
       if (w === 'seat') {
-        g.title = `Ты в команде «${TEAM[k] || '…'}»`;
         g.tone = k || '';
-        g.text = needDraft ? 'Ждём, когда ведущий начнёт драфт героев.' : 'Ждём код лобби от ведущего.';
+        if (sharing && !mine) {
+          g.now = true;
+          g.title = 'Займи героя';
+          g.text = 'Нажми на героя своей команды ниже — так вы решаете, кто на ком играет. Поменяться можно, пока матч не начался.';
+        } else if (sharing) {
+          g.title = `Твой герой — ${heroName(mine)}`;
+          g.text = 'Передумал — нажми на другого свободного героя своей команды. Ждём код лобби от ведущего.';
+        } else {
+          g.title = `Ты в команде «${TEAM[k] || '…'}»`;
+          g.text = needDraft ? 'Ждём, когда ведущий начнёт драфт героев.' : 'Ждём код лобби от ведущего.';
+        }
         return g;
       }
       g.title = d ? 'Драфт окончен' : 'Команды собраны';
@@ -572,17 +587,16 @@ export function mountEvent(root, id, opt) {
       if (isHost() && st.pinned.includes(uid)) tags.push('<span class="tag">закреплён</span>');
     }
     const d = st.draft;
-    const pick = d && d.picks[uid];
-    const turn = d && !d.done && d.steps[d.i].uid === uid;
+    const pick = d && d.take ? d.take[uid] : null;            // герой, которого игрок занял после драфта
     let dot = '';
     if (o.pool) dot = `<span class="dot ${isReady(uid) ? 'ok' : ''}" title="${isReady(uid) ? 'готов' : 'не готов'}"></span>`;
     else if (st.check && !c.guest) dot = `<span class="dot ${st.check.ready.includes(uid) ? 'ok' : ''}" title="${st.check.ready.includes(uid) ? 'готов' : 'ещё не подтвердил'}"></span>`;
     else if (st.lobby && st.lobby.mode === 'bot' && st.phase === 'lobby' && st.lobby.inside.length) {
       dot = `<span class="dot ${st.lobby.inside.includes(uid) ? 'ok' : ''}" title="${st.lobby.inside.includes(uid) ? 'в лобби' : 'ещё не в лобби'}"></span>`;
     }
-    const right = pick ? heroImg(pick, 'pick') : `<span class="mains">${(c.mains || []).map((h) => heroImg(h)).join('')}</span>`;
+    const right = pick ? heroImg(pick, 'pick') : '';
     const drag = isHost() && st.teams && (st.phase === 'teams' || st.phase === 'lobby') && o.team ? ' draggable="true"' : '';
-    return `<button class="slot ${uid === meId() ? 'me-row' : ''} ${turn ? 'turn' : ''} ${o.cap ? 'capn' : ''} ${o.pool && !isReady(uid) ? 'idle' : ''}" data-uid="${esc(uid)}"${drag}>
+    return `<button class="slot ${uid === meId() ? 'me-row' : ''} ${o.cap ? 'capn' : ''} ${o.pool && !isReady(uid) ? 'idle' : ''}" data-uid="${esc(uid)}"${drag}>
       ${dot}${o.pos ? `<span class="pos">${o.pos}</span>` : ''}${ava(c)}
       <span class="who"><span class="nm"><b>${esc(c.name)}</b>${tags.join('')}</span><span class="sub">${rankLine(c)}</span></span>
       ${right}${o.extra || ''}${badgeImg(c.badge)}</button>`;
@@ -695,61 +709,98 @@ export function mountEvent(root, id, opt) {
     const mid = caps() && (ph === 'pick' || (st.queue.length && ['teams', 'lobby'].includes(ph)));
     const tail = !caps() && st.queue.length ? `<section class="card plist"><header><h2>Очередь</h2><span class="dim num">${st.queue.length}</span></header>
       <div class="pgrid">${st.queue.map((u, i) => slot(u, { pos: i + 1 })).join('')}</div></section>` : '';
-    return `${bar}<div class="arena ${mid ? 'three' : 'two'}">${teamCol('a')}${mid ? poolCol() : ''}${teamCol('b')}</div>${bansRow()}${tail}`;
+    return `${bar}${heroesHtml()}${bansRow()}<div class="arena ${mid ? 'three' : 'two'}">${teamCol('a')}${mid ? poolCol() : ''}${teamCol('b')}</div>${tail}`;
   }
 
-  // Экран драфта: лента ходов, две команды со слотами пиков и банов, таймер по центру, сетка героев.
+  // Доска драфта: лента ходов, слоты героев двух команд (без ников: игроки разберут героев сами после драфта),
+  // часы по центру, запас дополнительного времени у каждой команды, сетка героев.
   function draftHtml() {
     const d = st.draft;
     if (!d) return '';
     const t = st.teams;
     const step = d.done ? null : d.steps[d.i];
     const banned = new Set(d.bans.filter(Boolean));
-    const taker = {};
-    for (const [u, h] of Object.entries(d.picks)) taker[h] = u;
+    const taken = { a: new Set(d.picks.a), b: new Set(d.picks.b) };
     const capUid = step ? t[step.team][0] : null;
-    const actor = step ? (step.t === 'ban' ? capUid : step.uid) : null;
-    const can = !!step && !opt.obs && (isHost() || meId() === capUid || (step.t === 'pick' && meId() === step.uid));
-    const mains = step && step.t === 'pick' ? (card(step.uid).mains || []) : [];
+    const can = !!step && !opt.obs && (isHost() || (!!capUid && meId() === capUid));
+    const over = !!step && d.over != null;
     const tname = (k) => (t[k].length ? 'Команда ' + nm(t[k][0]) : TEAM[k]);
     const strip = d.steps.map((x, i) => `<i class="${x.team} ${d.done || i < d.i ? 'done' : i === d.i ? 'cur' : ''}">${x.t === 'ban' ? 'бан' : 'пик'}</i>`).join('');
-    const picks = (k) => t[k].map((u) => {
-      const h = d.picks[u];
-      const hero = h && meta.byId.get(h);
-      const cur = step && step.t === 'pick' && step.uid === u;
-      return `<div class="dslot ${cur ? 'cur' : ''}">${hero && (hero.card || hero.icon) ? `<img src="${esc(hero.card || hero.icon)}" alt="${esc(hero.name)}">` : `<span>${h ? esc(heroName(h)) : '?'}</span>`}
-        <b>${nm(u)}</b></div>`;
-    }).join('');
+    const count = (k) => d.steps.filter((x) => x.t === 'pick' && x.team === k).length;
+    const picks = (k) => {
+      const cur = step && step.t === 'pick' && step.team === k ? d.picks[k].length : -1;
+      let out = '';
+      for (let i = 0; i < count(k); i++) {
+        const h = d.picks[k][i];
+        const hero = h && meta.byId.get(h);
+        out += `<div class="dslot ${i === cur ? 'cur' : ''}">${hero && (hero.card || hero.icon) ? `<img src="${esc(hero.card || hero.icon)}" alt=""><b>${esc(hero.name)}</b>`
+          : `<span>${h ? esc(heroName(h)) : '?'}</span>`}</div>`;
+      }
+      return out;
+    };
     const bans = (k) => d.steps.map((x, i) => ({ x, i })).filter((o) => o.x.t === 'ban' && o.x.team === k).map((o) => {
       if (o.i >= d.bans.length) return `<div class="dban ${!d.done && o.i === d.i ? 'cur' : ''}"></div>`;
       const h = d.bans[o.i];
       return h ? `<div class="dban full" title="${esc(heroName(h))}">${heroImg(h)}</div>` : '<div class="dban" title="бан пропущен">—</div>';
     }).join('');
+    // запас дополнительного времени команды: тикает, только когда её время хода вышло
+    const reserve = (k) => `<div class="dres ${over && step.team === k ? 'on' : ''}" title="Дополнительное время команды на весь драфт">доп. время
+      ${over && step.team === k ? `<b class="mono" data-until="${d.until}"></b>` : `<b class="mono">${clock(d.reserve[k])}</b>`}</div>`;
     const mid = step
-      ? `<div class="dkind ${step.team}">${step.t === 'ban' ? 'Бан' : 'Выбор героя'}</div><div class="dclock mono" data-until="${d.until}"></div>
-         <div class="dwho">${actor ? nm(actor) : ''}${can && meId() === actor ? ' — твой ход' : ''}</div>`
-      : '<div class="dkind">Драфт окончен</div><div class="dwho">Берите в игре своих героев</div>';
+      ? `<div class="dkind ${step.team}">${step.t === 'ban' ? 'Бан' : 'Выбор героя'}</div>
+         <div class="dclock mono ${over ? 'over' : ''}" data-until="${d.until}"></div>
+         <div class="dwho">${over ? 'идёт дополнительное время' : capUid ? 'ходит ' + nm(capUid) : ''}${can && meId() === capUid ? ' — твой ход' : ''}</div>`
+      : `<div class="dkind">Драфт окончен</div><div class="dwho">${d.mode === 'full' ? 'Игроки разбирают героев' : 'Берите героев в игре'}</div>`;
     let go = '';
     if (step && can) {
       go = selHero && !banned.has(selHero)
         ? btn('draft_go', `${step.t === 'ban' ? 'Забанить' : 'Взять'}: ${esc(heroName(selHero))}`, 'primary xl')
-        : `<span class="dim">Выбери героя ниже${isHost() && meId() !== actor && actor ? ': ты ходишь за ' + nm(actor) : ''}</span>`;
-    } else if (step) go = '<span class="dim">Ждём хода</span>';
+        : `<span class="dim">Выбери героя ниже${isHost() && meId() !== capUid && capUid ? ': ты ходишь за ' + nm(capUid) : ''}</span>`;
+    } else if (step) go = '<span class="dim">Ждём хода капитана</span>';
     const tiles = d.done ? '' : meta.heroes.map((h) => {
       const ban = banned.has(h.id);
-      const who = taker[h.id];
-      const off = ban || (!st.settings.dup && who);
-      const cls = [off ? 'off' : '', selHero === h.id ? 'sel' : '', mains.includes(h.id) ? 'main' : '', can ? '' : 'idle'].join(' ');
-      const mark = ban ? '<em class="x">бан</em>' : who ? `<em class="${teamOf(who) || ''}">взят</em>` : '';
+      const by = taken.a.has(h.id) ? 'a' : taken.b.has(h.id) ? 'b' : null;
+      // одинаковые герои разрешены — чужой выбор не мешает, повторяться нельзя только в своей команде
+      const off = ban || (step.t === 'pick' && (st.settings.dup ? taken[step.team].has(h.id) : !!by));
+      const cls = [off ? 'off' : '', selHero === h.id ? 'sel' : '', can ? '' : 'idle'].join(' ');
+      const mark = ban ? '<em class="x">бан</em>' : by ? `<em class="${by}">взят</em>` : '';
       return `<button class="hcard ${cls}" data-hero="${h.id}" ${can && !off ? '' : 'tabindex="-1"'}>
         ${h.card || h.icon ? `<img src="${esc(h.card || h.icon)}" alt="" loading="lazy">` : ''}<span>${esc(h.name)}</span>${mark}</button>`;
     }).join('');
     return `<section class="card draft2">${d.done ? '' : `<div class="dstrip">${strip}</div>`}
       <div class="dhead"><b class="a">${tname('a')}</b><span>VS</span><b class="b">${tname('b')}</b></div>
-      <div class="dboard"><div class="dside a"><div class="dpicks" style="--n:${Math.max(t.a.length, 1)}">${picks('a')}</div><div class="dbans">${bans('a')}</div></div>
+      <div class="dboard"><div class="dside a"><div class="dpicks" style="--n:${Math.max(count('a'), 1)}">${picks('a')}</div><div class="dbans">${d.done ? '' : reserve('a')}${bans('a')}</div></div>
         <div class="dmid">${mid}</div>
-        <div class="dside b"><div class="dpicks" style="--n:${Math.max(t.b.length, 1)}">${picks('b')}</div><div class="dbans">${bans('b')}</div></div></div>
+        <div class="dside b"><div class="dpicks" style="--n:${Math.max(count('b'), 1)}">${picks('b')}</div><div class="dbans">${bans('b')}${d.done ? '' : reserve('b')}</div></div></div>
       ${d.done ? '' : `<div class="dgo">${go}</div><div class="hgrid2">${tiles}</div>`}</section>`;
+  }
+
+  // После драфта: герои каждой команды. Игрок нажимает на героя своей команды и занимает его — так команды
+  // сами решают, кто на ком играет. Нажал на своего ещё раз — освободил.
+  function heroesHtml() {
+    const d = st.draft;
+    if (!d || !d.done || d.mode !== 'full') return '';
+    const uid = meId();
+    const myTeam = teamOf(uid);
+    const open = ['teams', 'lobby'].includes(st.phase) && !opt.obs;
+    const col = (k) => {
+      const who = {};
+      for (const u of st.teams[k]) if (d.take[u]) who[d.take[u]] = u;
+      const cards = d.picks[k].map((h) => {
+        const hero = meta.byId.get(h);
+        const owner = who[h];
+        const mine = !!owner && owner === uid;
+        const can = open && myTeam === k && (!owner || mine);
+        return `<button class="tcard ${mine ? 'mine' : ''} ${owner && !mine ? 'busy' : ''} ${can ? '' : 'idle'}" ${can ? `data-take="${h}"` : 'tabindex="-1"'}>
+          ${hero && (hero.card || hero.icon) ? `<img src="${esc(hero.card || hero.icon)}" alt="" loading="lazy">` : ''}
+          <span class="hn">${esc(heroName(h))}</span><span class="by">${owner ? nm(owner) : can ? 'Занять' : 'свободен'}</span></button>`;
+      }).join('');
+      const got = st.teams[k].filter((u) => d.take[u]).length;
+      return `<section class="card heroes ${k}"><header><span class="tn">Герои команды «${TEAM[k]}»</span>
+        <span class="ts num">заняли ${got} из ${st.teams[k].length}</span></header>
+        <div class="tgrid" style="--n:${Math.max(d.picks[k].length, 1)}">${cards || '<div class="empty">Героев нет</div>'}</div></section>`;
+    };
+    return `<div class="arena two hsplit">${col('a')}${col('b')}</div>`;
   }
 
   function staffHtml() {
@@ -969,6 +1020,7 @@ export function mountEvent(root, id, opt) {
         <label class="field"><span>Банов на команду</span>${sel('bans', { 1: '1', 2: '2', 3: '3', 4: '4' }, s.bans)}</label>
         <label class="field"><span>Порядок выбора героев</span>${sel('order', meta.orders, s.order)}</label>
         <label class="field"><span>Секунд на ход</span>${sel('pick_seconds', { 15: '15', 20: '20', 30: '30', 45: '45', 60: '60' }, s.pick_seconds)}</label>
+        <label class="field"><span>Дополнительное время команды на драфт</span>${sel('reserve_seconds', { 0: 'нет', 30: '0:30', 60: '1:00', 90: '1:30', 120: '2:00', 180: '3:00' }, s.reserve_seconds == null ? 90 : s.reserve_seconds)}</label>
         <label class="field"><span>Режим игры</span>${sel('mode', meta.modes, s.mode)}</label>
         <label class="field"><span>Регион сервера</span>${sel('region', meta.regions, s.region)}</label>
       </div>
@@ -985,7 +1037,7 @@ export function mountEvent(root, id, opt) {
     $('#set-save', m.el).addEventListener('click', async () => {
       const f = new FormData($('#set-form', m.el));
       const g = (n) => f.get(n);
-      const settings = { size: +g('size'), mode: g('mode'), region: g('region'), draft: g('draft'), teams: g('teams'), order: g('order'), bans: +g('bans'), pick_seconds: +g('pick_seconds'),
+      const settings = { size: +g('size'), mode: g('mode'), region: g('region'), draft: g('draft'), teams: g('teams'), order: g('order'), bans: +g('bans'), pick_seconds: +g('pick_seconds'), reserve_seconds: +g('reserve_seconds'),
         rotation: f.has('rotation'), dup: f.has('dup'), lanes: f.has('lanes'), cheats: f.has('cheats') };
       if (!await act('settings', { settings })) return;
       const title = String(g('title')).trim();
@@ -1129,6 +1181,13 @@ export function mountEvent(root, id, opt) {
       e.preventDefault();
       if (a.closest('.stbtns') && Date.now() - stageAt < 600) return;
       if (!a.disabled && ACTS[a.dataset.act]) ACTS[a.dataset.act]();
+      return;
+    }
+    const tk = e.target.closest('[data-take]');
+    if (tk) {                                                   // занять героя своей команды; по своему ещё раз — освободить
+      e.preventDefault();
+      const hero = +tk.dataset.take;
+      act('take_hero', { hero: st.draft && st.draft.take[meId()] === hero ? null : hero });
       return;
     }
     const un = e.target.closest('[data-unstaff]');

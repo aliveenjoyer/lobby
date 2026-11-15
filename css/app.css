@@ -334,6 +334,7 @@ body.lobbypage .wrap { max-width: 1440px; }
 .dslot.cur { border-color: #fff; outline: 1px solid #fff; }
 .dbans { display: flex; gap: 6px; }
 .dside.a .dbans { justify-content: flex-end; }
+.dbans { align-items: center; }
 .dban { width: 40px; height: 40px; border-radius: 9px; border: 1px dashed var(--line2); display: grid; place-items: center; color: var(--mute); }
 .dban.cur { border: 1px solid #fff; }
 .dban.full { border: 1px solid rgba(224, 87, 79, .7); }
@@ -344,6 +345,36 @@ body.lobbypage .wrap { max-width: 1440px; }
 .dkind.a { color: var(--amber-hi); }
 .dkind.b { color: var(--sapph-hi); }
 .dclock { font-size: 38px; font-weight: 700; line-height: 1.1; }
+.dclock.over { color: #ffb44d; }
+.dres { display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 10px; border-radius: 9px; border: 1px solid var(--line2); font-size: 12px;
+  color: var(--dim); white-space: nowrap; }
+.dres b { font-size: 15px; color: var(--text); }
+.dres.on { border-color: #ffb44d; color: #ffd9a0; }
+.dres.on b { color: #ffb44d; }
+/* герои команды после драфта: игрок занимает своего */
+.heroes { overflow: hidden; }
+.heroes > header { padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.heroes.a > header { box-shadow: inset 0 2px 0 var(--amber); }
+.heroes.b > header { box-shadow: inset 0 2px 0 var(--sapph); }
+.heroes .tn { font-weight: 600; font-size: 15px; }
+.heroes.a .tn { color: var(--amber-hi); }
+.heroes.b .tn { color: var(--sapph-hi); }
+.heroes .ts { font-size: 13px; color: var(--dim); }
+.tgrid { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 8px; padding: 12px; }
+.tcard { position: relative; aspect-ratio: 3 / 4; padding: 0; border-radius: 10px; overflow: hidden; border: 1px solid var(--line2); background: var(--card2);
+  color: #fff; cursor: pointer; }
+.tcard img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.tcard .hn { position: absolute; left: 0; right: 0; top: 0; padding: 6px 4px 14px; font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+  text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: linear-gradient(rgba(0, 0, 0, .8), transparent); }
+.tcard .by { position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 4px 7px; font-size: 12px; font-weight: 600; text-align: center; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; background: linear-gradient(transparent, rgba(0, 0, 0, .92)); }
+.tcard:hover { border-color: #8a8a8a; }
+.tcard.mine { border-color: #fff; outline: 2px solid #fff; outline-offset: -1px; }
+.tcard.busy img { filter: grayscale(.7) brightness(.55); }
+.tcard.idle { cursor: default; }
+.tcard.idle:hover { border-color: var(--line2); }
+.tcard.idle:not(.busy):not(.mine) .by { color: var(--dim); font-weight: 500; }
+.tcard:not(.idle):not(.mine) .by { color: #000; background: #fff; padding: 6px 4px; margin: 0 6px 6px; border-radius: 7px; }
 .dwho { font-size: 13px; color: var(--dim); max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .dgo { display: grid; place-items: center; min-height: 54px; margin: 14px 0 12px; }
 .hgrid2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; }
@@ -484,6 +515,10 @@ body.obs main { padding: 16px; }
   .dside.a .dbans { justify-content: flex-start; }
   .dhead { font-size: 14px; gap: 10px; }
   .dclock { font-size: 30px; }
+}
+@media (max-width: 640px) {
+  .arena.hsplit { grid-template-columns: minmax(0, 1fr); }       /* на телефоне герои команд — друг под другом, иначе в карточку не попасть */
+  .tgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 8px; gap: 6px; }
 }
 @media (max-width: 640px) {
   body { font-size: 15px; }

@@ -1,12 +1,12 @@
 // Лобби: маршруты, шапка, главная, профиль, страница ведущего.
-import { call, meta, loadMeta, session } from './api.js?v=20261116023039';
+import { call, meta, loadMeta, session } from './api.js?v=20261116024452';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, toast, oops, modal, head, confirmHold,
   ICON, dateRu,
-} from './ui.js?v=20261116023039';
-import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116023039';
-import { mountEvent } from './event.js?v=20261116023039';
-import { profileBlocks } from './profile.js?v=20261116023039';
+} from './ui.js?v=20261116024452';
+import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116024452';
+import { mountEvent } from './event.js?v=20261116024452';
+import { profileBlocks } from './profile.js?v=20261116024452';
 
 const view = $('#view');
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
