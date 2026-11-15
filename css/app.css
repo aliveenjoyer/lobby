@@ -688,13 +688,14 @@ body.obs::before { display: none; }
 /* предметы игрока: плитка цвета категории (оружие, живучесть, дух) с белым значком. В узкой таблице — второй строкой
    под игроком, в широкой (от 1320 px) — колонкой справа, как на экране итогов в игре */
 .score { container-type: inline-size; }
-.its { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 3px; margin: -4px 0 0; padding: 0 0 9px 40px; }
+.its { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 3px; margin: 3px 0 0; padding: 0 0 10px 40px; }
 .shead .hits { display: none; text-align: left; }
 .it { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; background: var(--glass2); }
 .it.w { background: #b06e14; }
 .it.v { background: #55861f; }
 .it.s { background: #7a52b3; }
 .it img { width: 18px; height: 18px; object-fit: contain; }
+.it.full img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }      /* у предмета есть только цветная картинка из магазина */
 @container (min-width: 1320px) {
   .score.items .shead, .score.items .srow { grid-template-columns: minmax(0, 1fr) 96px repeat(4, 92px) 436px; }
   .score.items .shead .hits { display: block; }
@@ -756,6 +757,7 @@ body.obs::before { display: none; }
   .its { padding-left: 34px; }
   .it { width: 21px; height: 21px; border-radius: 5px; }
   .it img { width: 15px; height: 15px; }
+  .it.full img { width: 100%; height: 100%; }
   .srow .kda, .sc b { font-size: 13px; }
   .sth .tsum { font-size: 12px; }
 }

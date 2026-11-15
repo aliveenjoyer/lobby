@@ -1,7 +1,7 @@
 // Таблица матча: живая, пока игра идёт, и итоговая после неё.
 // Одна и та же на странице лобби, в слое для OBS и в прошедших играх на странице ведущего.
-import { meta } from './api.js?v=20261116043646';
-import { esc, heroImg, heroName, fmt, plural, clock, dateRu, modal, head } from './ui.js?v=20261116043646';
+import { meta } from './api.js?v=20261116044031';
+import { esc, heroImg, heroName, fmt, plural, clock, dateRu, modal, head } from './ui.js?v=20261116044031';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 // колонки с числами; opt — на телефоне прячутся
@@ -15,7 +15,8 @@ function itemsHtml(ids) {
   const list = (ids || []).map((id, n) => ({ x: meta.itemById.get(id), n })).filter((o) => o.x);
   if (!list.length) return '';
   list.sort((a, b) => ORDER[a.x.s] - ORDER[b.x.s] || a.n - b.n);
-  return list.map(({ x }) => `<span class="it ${x.s}" title="${esc(x.n)} · ${SLOT[x.s]}">${x.i ? `<img src="${esc(x.i)}" alt="${esc(x.n)}" loading="lazy">` : ''}</span>`).join('');
+  // обычно значок — белый рисунок на прозрачном фоне; у немногих предметов есть только цветная картинка из магазина
+  return list.map(({ x }) => `<span class="it ${x.s} ${x.i && x.i.includes('/images/items/') ? 'full' : ''}" title="${esc(x.n)} · ${SLOT[x.s]}">${x.i ? `<img src="${esc(x.i)}" alt="${esc(x.n)}" loading="lazy">` : ''}</span>`).join('');
 }
 
 // t — таблица с сервера: { rows, clock, paused, at, live, win }

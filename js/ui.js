@@ -1,5 +1,5 @@
 // Мелкие кирпичи интерфейса: безопасный текст, окна, уведомления, значки рангов и героев.
-import { meta } from './api.js?v=20261116043646';
+import { meta } from './api.js?v=20261116044031';
 
 export const $ = (sel, root) => (root || document).querySelector(sel);
 export const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
