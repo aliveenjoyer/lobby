@@ -1,12 +1,12 @@
 // Страница лобби. Правило одно: один шаг — одна главная кнопка.
 // Сверху «сцена»: что сейчас происходит и что нажать именно мне (игроку, капитану или ведущему).
 // Под ней комната: места капитанов, список игроков, команды, драфт героев.
-import { API, BASE, call, meta } from './api.js?v=20261116020306';
+import { API, BASE, call, meta } from './api.js?v=20261116022036';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, clock, toast, oops, modal, head, closeModal,
   confirmHold, copy, rankPicker, pickedRank, ICON, morph,
-} from './ui.js?v=20261116020306';
-import { user, login, linkSteam, onUser } from './auth.js?v=20261116020306';
+} from './ui.js?v=20261116022036';
+import { user, login, linkSteam, onUser } from './auth.js?v=20261116022036';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 const TEAM_GEN = { a: 'Янтаря', b: 'Сапфира' };
@@ -46,7 +46,9 @@ export function mountEvent(root, id, opt) {
   const capOf = (uid) => (!uid || st.phase !== 'gather' ? null : st.caps.a === uid ? 'a' : st.caps.b === uid ? 'b' : null);
   const now = () => Date.now() / 1000 + skew;
   const nm = (uid) => esc(card(uid).name);
-  const rankLine = (c) => (c.badge ? `${esc(badgeName(c.badge))}${c.pts != null && !opt.obs ? ' · <span class="num">' + fmt(c.pts) + '</span>' : ''}` : 'ранг неизвестен');
+  // ранг берётся только из игры; если его там нет — так и пишем (калибровка: рейтинг уже играет, ранг ещё не выдан)
+  const rankLine = (c) => (c.badge ? `${esc(badgeName(c.badge))}${c.pts != null && !opt.obs ? ' · <span class="num">' + fmt(c.pts) + '</span>' : ''}`
+    : (c.flags || []).includes('calib') ? 'без ранга: калибровка' : 'без ранга');
   function voteCount() {
     const cnt = {};
     for (const t of Object.values(st.votes)) cnt[t] = (cnt[t] || 0) + 1;
@@ -114,7 +116,7 @@ export function mountEvent(root, id, opt) {
       return await call('/events/' + id + '/act', Object.assign({ do: what }, extra || {}));
     } catch (e) {
       if (e.code === 'auth') login();
-      else if (e.code === 'steam' || e.code === 'norank') needRank(e.message);
+      else if (e.code === 'steam') needSteam(e.message);
       else if (!quiet) oops(e);
       return null;
     } finally { busy = false; }
@@ -153,22 +155,17 @@ export function mountEvent(root, id, opt) {
   }
 
   // ------------------------------------------------------------ сцена: что сейчас и что нажать
-  // Что мешает записаться: вход, Steam или ранг. Ведущему можно без ранга.
+  // Что мешает записаться: вход или Steam (ранг берётся только из игры). Ведущему можно без Steam.
   function gate() {
     const me = user.me;
-    const s = st.settings;
     if (!me) {
       return { title: 'Запись на игру открыта', text: 'Войди через Twitch — и сможешь записаться или стать капитаном.',
         btns: [P('login', `${ICON.twitch}<span>Войти через Twitch</span>`)] };
     }
     if (isHost()) return null;
-    if (s.need_steam && !me.steam) {
-      return { title: 'Привяжи Steam, чтобы записаться', text: 'Ведущий просит Steam: по нему сайт узнаёт твой ранг и героев. Вход идёт на странице Steam, пароль сайт не видит.',
+    if (!me.steam) {
+      return { title: 'Привяжи Steam, чтобы записаться', text: 'Ранг и герои берутся только из игры — по твоему Steam. Вход идёт на странице Steam, пароль сайт не видит.',
         btns: [P('steam', `${ICON.steam}<span>Привязать Steam</span>`)] };
-    }
-    if (!me.steam && !me.manual_badge) {
-      return { title: 'Укажи ранг, чтобы записаться', text: 'Привяжи Steam — ранг и герои подставятся сами. Или выбери ранг в профиле.',
-        btns: [P('steam', `${ICON.steam}<span>Привязать Steam</span>`), '<a class="btn xl" href="#/me">Указать вручную</a>'] };
     }
     return null;
   }
@@ -517,7 +514,7 @@ export function mountEvent(root, id, opt) {
     }
     const buttons = b.filter((x) => !used.includes(x[0])).map(([a, t, cl]) => btn(a, t, 'sm ' + (cl || ''))).join('');
     return `<div class="merow"><span class="lbl">Ты</span>${ava(me, 's')}<b>${esc(me.name)}</b>
-      <span class="rk">${badge ? esc(badgeName(badge)) : 'ранг не указан'}</span><span class="state ${cls}">${state}</span><span class="sp"></span>${buttons}</div>`;
+      <span class="rk">${badge ? esc(badgeName(badge)) : 'без ранга'}</span><span class="state ${cls}">${state}</span><span class="sp"></span>${buttons}</div>`;
   }
 
   // Тихая полоса ведущего: всё, что не относится к текущему шагу.
@@ -560,8 +557,6 @@ export function mountEvent(root, id, opt) {
     else if (c.guest) tags.push('<span class="tag">гость</span>');
     if (!opt.obs) {
       const fl = c.flags || [];
-      if (fl.includes('manual')) tags.push('<span class="tag">ранг со слов</span>');
-      else if (fl.includes('norank')) tags.push('<span class="tag">без ранга</span>');
       if (isHost() && fl.includes('few')) tags.push('<span class="tag">мало матчей</span>');
       if (isHost() && st.pinned.includes(uid)) tags.push('<span class="tag">закреплён</span>');
     }
@@ -804,9 +799,9 @@ export function mountEvent(root, id, opt) {
   const ticker = setInterval(tick, 250);
 
   // ------------------------------------------------------------ окна
-  function needRank(text) {
-    const m = modal(`${head('Нужен ранг')}<div class="body"><p class="dim">${esc(text)}</p></div>
-      <footer><a class="btn" href="#/me" data-close>Указать вручную</a>
+  function needSteam(text) {
+    const m = modal(`${head('Нужен Steam')}<div class="body"><p class="dim">${esc(text)}. Вход идёт на странице Steam, пароль сайт не видит.</p></div>
+      <footer><button class="btn" data-close>Не сейчас</button>
       <button class="btn primary" id="nr-steam">${ICON.steam}<span>Привязать Steam</span></button></footer>`);
     $('#nr-steam', m.el).addEventListener('click', () => { m.close(); linkSteam(); });
   }
@@ -856,6 +851,8 @@ export function mountEvent(root, id, opt) {
       ${s.index != null ? `<div><b>${s.index}</b><span>индекс игры из 100</span></div>` : ''}</div>
       ${s.heroes.length ? `<div class="hlist">${s.heroes.map((h) => `<div>${heroImg(h.id, 'm')}<span class="n">${esc(heroName(h.id))}</span><span class="dim num">${h.m} ${plural(h.m, 'матч', 'матча', 'матчей')} · ${h.wr}%</span></div>`).join('')}</div>` : ''}`
       : `<p class="dim">${c.bot ? 'Тестовый игрок: добавлен, чтобы попробовать лобби одному. Голосует и ходит сам.' : c.guest ? 'Гостя добавил ведущий, статистики нет.' : 'Steam не привязан: статистики нет.'}</p>`;
+    const calib = (c.flags || []).includes('calib');
+    const noRank = !c.badge && !c.guest ? `<p class="note">В игре у него пока нет ранга${calib ? ': идёт калибровка' : ''}. Сайт берёт ранг только из игры. ${host ? 'Чтобы команды считались честно, поставь ему ранг сам — поле ниже.' : 'Ранг ему может поставить ведущий.'}</p>` : '';
     let tools = '';
     if (host && st.phase !== 'closed') {
       const b = [];
@@ -879,7 +876,7 @@ export function mountEvent(root, id, opt) {
       }
       if (w === 'queue') b.push(`<button class="btn danger" data-h="kick">${caps() ? 'Убрать из списка' : 'Убрать из очереди'}</button>`);
       if (!c.guest && uid !== st.host.uid) {
-        b.push(`<label class="field"><span>Поправить ранг (твоя оценка главнее значка)</span>${rankPicker('pm-rank', (pv.overrides || {})[uid] || 0)}</label>
+        b.push(`<label class="field"><span>Ранг от ведущего: твоя оценка главнее ранга из игры</span>${rankPicker('pm-rank', (pv.overrides || {})[uid] || 0)}</label>
           <div class="row"><button class="btn" data-h="override">Сохранить ранг</button>${(pv.overrides || {})[uid] ? '<button class="btn ghost" data-h="override_off">Сбросить поправку</button>' : ''}</div>`);
         b.push('<button class="btn danger" data-h="ban">Закрыть доступ к моим лобби</button>');
       }
@@ -888,7 +885,7 @@ export function mountEvent(root, id, opt) {
     const m = modal(`<header><div class="row" style="gap:12px">${ava(c, 'l')}<div><h3>${esc(c.name)}</h3>
       <div class="dim" style="font-size:13px">${esc(badgeName(c.badge))}${c.pts != null ? ' · сила ' + fmt(c.pts) : ''}${c.games ? ` · ${c.games} ${plural(c.games, 'игра', 'игры', 'игр')} на сайте, побед ${c.wins}` : ''}</div></div></div>
       <button class="x" data-close aria-label="Закрыть">×</button></header>
-      <div class="body">${links.length ? `<div class="row">${links.join('')}</div>` : ''}${kv}${tools}</div>`);
+      <div class="body">${links.length ? `<div class="row">${links.join('')}</div>` : ''}${noRank}${kv}${tools}</div>`);
     m.el.addEventListener('change', async (e) => {
       if (e.target.id === 'pm-swap' && e.target.value) { if (await act('swap', { u1: uid, u2: e.target.value })) m.close(); }
     });
@@ -938,7 +935,6 @@ export function mountEvent(root, id, opt) {
         <label class="field"><span>Режим игры</span>${sel('mode', meta.modes, s.mode)}</label>
         <label class="field"><span>Регион сервера</span>${sel('region', meta.regions, s.region)}</label>
       </div>
-      ${sw('need_steam', 'Steam обязателен (иначе ранг со слов)', s.need_steam)}
       ${sw('rotation', 'Очередь играет следующую игру первой (когда команды делит сайт)', s.rotation)}
       ${sw('dup', 'Одинаковые герои разрешены', s.dup)}
       ${sw('lanes', 'Случайные линии', s.lanes)}
@@ -953,7 +949,7 @@ export function mountEvent(root, id, opt) {
       const f = new FormData($('#set-form', m.el));
       const g = (n) => f.get(n);
       const settings = { size: +g('size'), mode: g('mode'), region: g('region'), draft: g('draft'), teams: g('teams'), order: g('order'), bans: +g('bans'), pick_seconds: +g('pick_seconds'),
-        need_steam: f.has('need_steam'), rotation: f.has('rotation'), dup: f.has('dup'), lanes: f.has('lanes'), cheats: f.has('cheats') };
+        rotation: f.has('rotation'), dup: f.has('dup'), lanes: f.has('lanes'), cheats: f.has('cheats') };
       if (!await act('settings', { settings })) return;
       const title = String(g('title')).trim();
       if (title && title !== st.title) await act('title', { title });

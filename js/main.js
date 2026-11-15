@@ -1,12 +1,12 @@
 // Лобби: маршруты, шапка, главная, профиль, страница ведущего.
-import { call, meta, loadMeta, session } from './api.js?v=20261116020306';
+import { call, meta, loadMeta, session } from './api.js?v=20261116022036';
 import {
-  $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, toast, oops, modal, head, confirmHold, rankPicker, pickedRank,
+  $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, toast, oops, modal, head, confirmHold,
   ICON, dateRu,
-} from './ui.js?v=20261116020306';
-import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116020306';
-import { mountEvent } from './event.js?v=20261116020306';
-import { profileBlocks } from './profile.js?v=20261116020306';
+} from './ui.js?v=20261116022036';
+import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116022036';
+import { mountEvent } from './event.js?v=20261116022036';
+import { profileBlocks } from './profile.js?v=20261116022036';
 
 const view = $('#view');
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
@@ -70,7 +70,7 @@ async function home(fresh) {
       <span class="t"><b>${esc(e.title)}</b><span>${PHASE[e.phase] || ''} · ${e.caps ? `записались ${e.seats + e.queue}` : `в составе ${e.seats} из ${e.cap}${e.queue ? ' · в очереди ' + e.queue : ''}`}${e.round > 1 ? ' · игра ' + e.round : ''}</span></span>
       ${e.host.live ? '<span class="chip live">LIVE</span>' : ''}<span class="btn sm primary">Зайти</span></a>`).join('');
     const prof = me ? `<section class="sec"><h2>Твой профиль</h2><a class="card evrow" href="#/me">${ava(me)}
-      <span class="t"><b>${esc(me.name)}</b><span>${me.badge ? esc(badgeName(me.badge)) : 'ранг не указан'}${me.pts != null ? ' · сила ' + fmt(me.pts) : ''}${me.steam ? '' : ' · Steam не привязан'}</span></span>
+      <span class="t"><b>${esc(me.name)}</b><span>${me.badge ? esc(badgeName(me.badge)) : me.steam ? 'в игре ранга пока нет' : 'без ранга'}${me.pts != null ? ' · сила ' + fmt(me.pts) : ''}${me.steam ? '' : ' · Steam не привязан'}</span></span>
       <span class="row" style="gap:3px;flex-wrap:nowrap">${(me.mains || []).map((h) => heroImg(h)).join('')}</span>${badgeImg(me.badge)}<span class="btn sm">Открыть</span></a></section>` : '';
     view.innerHTML = `<section class="hello"><h1>Кастомки Deadlock со зрителями</h1>
       <p>Ведущий создаёт лобби и кидает ссылку в чат. Зрители записываются, два капитана набирают команды, потом драфт героев и код для входа в игру.</p>
@@ -110,9 +110,12 @@ function mePage() {
     $('#p-login').addEventListener('click', login);
     return;
   }
-  const src = { game: 'ранг из игры', manual: 'ранг со слов', none: 'ранга пока нет', host: '' }[me.src];
-  const manual = `<div class="field"><span>${me.steam ? 'В рейтинговых матчах ранга нет. Укажи его сам — ведущий увидит пометку «со слов».' : 'Или укажи ранг вручную — ведущий увидит пометку «со слов».'}</span>
-    ${rankPicker('p-rank', me.manual_badge)}</div><div class="row"><button class="btn" data-p="rank">Сохранить ранг</button></div>`;
+  // Ранг берётся только из игры. Steam привязан, а ранга там нет — говорим, почему и что делать; указать самому нельзя.
+  const left = me.stats ? me.stats.calib : null;
+  const noRank = me.src === 'game' ? '' : `<div class="note">${left != null
+    ? `В игре у тебя пока нет ранга: идёт калибровка${left > 0 ? `, ${plural(left, 'осталась', 'остались', 'осталось')} ${left} ${plural(left, 'игра', 'игры', 'игр')}` : ''}.`
+    : 'В игре у тебя пока нет ранга: он появляется после рейтинговых матчей.'}
+    Сайт берёт ранг только из игры. Когда он там появится, нажми «Обновить статистику». До тех пор ранг тебе может поставить ведущий лобби.</div>`;
   const heroSel = (i) => `<select class="input" data-main="${i}"><option value="0">Не выбран</option>${meta.heroes.map((h) => `<option value="${h.id}" ${me.mains[i] === h.id ? 'selected' : ''}>${esc(h.name)}</option>`).join('')}</select>`;
   view.innerHTML = `<div class="phead">${ava(me, 'l')}<div class="t"><h1>${esc(me.name)}</h1>
       <div class="row" style="margin-top:6px"><a class="chip" href="https://twitch.tv/${esc(me.login)}" target="_blank" rel="noopener">twitch.tv/${esc(me.login)}</a>
@@ -123,12 +126,11 @@ function mePage() {
     <div class="grid2">
       <section class="card"><header><h2>Steam и ранг</h2></header><div class="body" style="display:grid;gap:14px">
         ${me.steam ? `<div class="dim">Привязан Steam${me.steam_name ? ': ' + esc(me.steam_name) : ''}. Статистика обновляется сама, когда ты записываешься на игру.</div>
-          ${me.src !== 'game' ? manual : ''}
+          ${noRank}
           <label class="switch"><span>Показывать ссылку на мой Statlocker на карточке</span><input type="checkbox" id="p-show" ${me.show_steam ? 'checked' : ''}><i></i></label>
           <div class="row"><button class="btn" data-p="refresh">Обновить статистику</button><button class="btn ghost" data-p="unlink">Отвязать Steam</button></div>`
-    : `<div class="rankrow">${badgeImg(me.badge, 'l')}<div class="t"><b>${esc(badgeName(me.badge))}</b><span class="dim">${src}${me.pts != null ? ' · сила ' + fmt(me.pts) : ''}</span></div></div>
-          <p class="dim">Привяжи Steam: сайт узнает номер аккаунта, а по нему ранг, героев и статистику. Пароль сайт не видит — вход идёт на странице Steam.</p>
-          <div class="row"><button class="btn primary" data-p="steam">${ICON.steam}<span>Привязать Steam</span></button></div>${manual}`}
+    : `<p class="dim">Привяжи Steam: сайт узнает номер аккаунта, а по нему ранг, героев и статистику из игры. Без Steam записаться на игру нельзя — ранг берётся только оттуда. Пароль сайт не видит: вход идёт на странице Steam.</p>
+          <div class="row"><button class="btn primary" data-p="steam">${ICON.steam}<span>Привязать Steam</span></button></div>`}
       </div></section>
       <div class="col">
         <section class="card"><header><h2>Мейны</h2><span class="dim" style="font-size:13px">${me.own_mains ? 'выбраны вручную' : 'по числу матчей'}</span></header><div class="body" style="display:grid;gap:10px">
@@ -151,7 +153,6 @@ function mePage() {
     const a = b.dataset.p;
     if (a === 'logout') { await logout(); location.hash = '#/'; }
     if (a === 'steam') linkSteam();
-    if (a === 'rank') { const badge = pickedRank('p-rank'); await save('/me', { manual_badge: badge || null }, badge ? 'Ранг сохранён' : 'Ранг убран'); }
     if (a === 'refresh') { b.disabled = true; await save('/me/refresh', {}, 'Статистика обновлена'); }
     if (a === 'unlink') {
       const m = modal(`${head('Отвязать Steam?')}<div class="body"><p class="dim">Ранг и статистика пропадут с карточки. Тот же Steam можно привязать снова в любой момент, другой — через 30 дней.</p></div>

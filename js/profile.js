@@ -1,10 +1,10 @@
 // Подробная статистика игрока: ранг и сила, стиль игры, история ранга, форма, герои, последние матчи.
 // Цифры считает сервер по открытым данным deadlock-api (server/stats.py); здесь только отрисовка.
-import { esc, heroImg, heroName, badgeImg, badgeName, fmt, plural } from './ui.js?v=20261116020306';
+import { esc, heroImg, heroName, badgeImg, badgeName, fmt, plural } from './ui.js?v=20261116022036';
 
 const AXES = [['dmg', 'Урон'], ['farm', 'Фарм'], ['obj', 'Объекты'], ['sup', 'Поддержка'], ['tank', 'Стойкость'], ['surv', 'Выживаемость']];
 const MODE = { r: 'рейтинг', u: 'обычный', b: 'Street Brawl', c: 'кастомка', o: '' };
-const SRC = { game: 'ранг из игры', manual: 'ранг со слов', none: 'ранга пока нет', host: 'ранг поставил ведущий' };
+const SRC = { game: 'ранг из игры', none: 'в игре ранга пока нет', host: 'ранг поставил ведущий' };
 
 export function grade(score) {
   if (score == null) return '';
@@ -84,7 +84,8 @@ function rankCard(c, m) {
   const pr = m && m.prog;
   const bar = pr ? `<div class="prog"><i style="width:${Math.round((100 * pr.have) / pr.need)}%"></i></div>
     <div class="dim num" style="font-size:13px">${fmt(pr.have)} из ${fmt(pr.need)}${pr.next ? ' до ранга ' + esc(badgeName(pr.next)) : ''}</div>` : '';
-  return `<section class="card"><header><h2>Ранг и сила</h2><span class="dim" style="font-size:13px">${SRC[c.src] || ''}</span></header>
+  const src = c.src === 'none' && c.stats && c.stats.calib != null ? 'в игре идёт калибровка' : SRC[c.src] || '';
+  return `<section class="card"><header><h2>Ранг и сила</h2><span class="dim" style="font-size:13px">${src}</span></header>
     <div class="body" style="display:grid;gap:12px"><div class="rankrow">${badgeImg(c.badge, 'l')}<div class="t"><b>${esc(badgeName(c.badge))}</b>
     <span class="dim">${c.pts != null ? 'сила ' + fmt(c.pts) : 'сила неизвестна'}</span></div></div>${bar}
     ${parts.length > 1 ? `<div class="dim" style="font-size:13px">Сила складывается: ${parts.join(' · ')}</div>` : ''}</div></section>`;
