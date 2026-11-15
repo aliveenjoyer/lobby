@@ -1,7 +1,7 @@
 // Таблица матча: живая, пока игра идёт, и итоговая после неё.
 // Одна и та же на странице лобби, в слое для OBS и в прошедших играх на странице ведущего.
-import { meta, call } from './api.js?v=20261116052615';
-import { esc, ava, heroImg, heroName, fmt, plural, clock, dateRu, modal, head } from './ui.js?v=20261116052615';
+import { meta, call } from './api.js?v=20261116052851';
+import { esc, ava, heroImg, heroName, fmt, plural, clock, dateRu, modal, head } from './ui.js?v=20261116052851';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 // колонки с числами; opt — на телефоне прячутся
@@ -45,7 +45,7 @@ function cardHtml(x) {
     }
     const big = rows.filter((r) => r[2] === 2).map((r) => `<div class="tbig"><b>${esc(r[0])}</b><span>${esc(r[1])}</span></div>`).join('');
     const rest = rows.filter((r) => r[2] !== 2).map((r) => `<div class="trow ${r[2] ? 'el' : ''}"><b>${esc(r[0])}</b><span>${esc(r[1])}</span></div>`).join('');
-    return `<section class="ts">${head}${sec.x ? `<p>${esc(sec.x).replace(/\n/g, '<br>')}</p>` : ''}${big ? `<div class="tbigs">${big}</div>` : ''}${rest}</section>`;
+    return `<section class="tsec">${head}${sec.x ? `<p>${esc(sec.x).replace(/\n/g, '<br>')}</p>` : ''}${big ? `<div class="tbigs">${big}</div>` : ''}${rest}</section>`;
   }).join('');
   const from = (x.f || []).map((id) => ((cards && cards.get(id)) || meta.itemById.get(id) || {}).n).filter(Boolean);
   const about = [SLOT[x.s], `уровень ${TIER[x.t] || x.t}`];

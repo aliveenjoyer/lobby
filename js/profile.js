@@ -1,8 +1,8 @@
 // Профиль игрока — «досье»: сцена с главным героем игрока и его цифрами, ниже стиль игры, путь по рангам, форма,
 // герои, последние матчи и игры на сайте. Цифры считает сервер по открытым данным deadlock-api (server/stats.py);
 // здесь только вид. Картина на сцене — фон главного героя из самой игры (site/assets/herobg, см. tools/fetch_hero_art.py).
-import { meta } from './api.js?v=20261116052615';
-import { esc, ava, heroImg, heroName, badgeImg, badgeName, fmt, plural, clock, dateRu } from './ui.js?v=20261116052615';
+import { meta } from './api.js?v=20261116052851';
+import { esc, ava, heroImg, heroName, badgeImg, badgeName, fmt, plural, clock, dateRu } from './ui.js?v=20261116052851';
 
 const AXES = [['dmg', 'Урон'], ['farm', 'Фарм'], ['obj', 'Объекты'], ['sup', 'Поддержка'], ['tank', 'Стойкость'], ['surv', 'Выживаемость']];
 const MODE = { r: 'рейтинг', u: 'обычный', b: 'Street Brawl', c: 'кастомка', o: '' };
@@ -17,7 +17,7 @@ const stamp = (score, cls) => (score == null ? `<span class="stamp none ${cls ||
   : `<span class="stamp g${grade(score)} ${cls || ''}" title="оценка ${score} из 100">${grade(score)}</span>`);
 const dec = (x, n) => (x == null ? '—' : Number(x).toFixed(n == null ? 1 : n).replace('.', ','));
 // крупные числа моноширинным шрифтом: обычный пробел между тысячами в нём слишком широкий, ставим узкий промежуток
-const big = (n) => fmt(n).replace(/\s/g, '<i class="ts"></i>');
+const big = (n) => fmt(n).replace(/\s/g, '<i class="nsp"></i>');
 const signed = (x) => (x > 0 ? '+' : x < 0 ? '−' : '') + fmt(Math.abs(x));
 const mmss = (s) => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 const hero = (id) => meta.byId.get(id) || {};

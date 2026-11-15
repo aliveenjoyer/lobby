@@ -711,8 +711,8 @@ body.obs::before { display: none; }
 .itip header b { display: block; font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
 .itip .tr { display: block; color: var(--dim); font-size: 13px; }
 .itip .tm { display: block; margin-top: 4px; color: var(--mute); font-size: 12px; }
-.itip .ts { padding: 2px 14px 12px; }
-.itip .ts + .ts { padding-top: 12px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .07); }
+.itip .tsec { padding: 2px 14px 12px; }
+.itip .tsec + .tsec { padding-top: 12px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .07); }
 .itip .th { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 6px; font-size: 12px; color: var(--mute); }
 .itip .th b { font-weight: 600; color: var(--dim); }
 .itip p { margin: 0 0 9px; color: var(--dim); }
@@ -804,7 +804,8 @@ body.obs::before { display: none; }
 .pf-chips .chip { background: rgba(255, 255, 255, .09); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
 .pf-act { position: absolute; z-index: 4; right: 26px; top: 26px; }
 .pf-act .btn { background: rgba(255, 255, 255, .1); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
-.ts { display: inline-block; width: .22em; }
+/* узкий промежуток между тысячами в крупных числах; имя класса своё: «.ts» занято подписью силы у команд */
+i.nsp { display: inline-block; width: .22em; }
 .pf-name { margin: 26px 0 26px; font: 800 clamp(40px, 6.6vw, 92px)/.92 var(--font); letter-spacing: -.05em; overflow-wrap: anywhere; text-wrap: balance;
   text-shadow: 0 2px 30px rgba(0, 0, 0, .6); }
 .pf-rank { display: flex; align-items: center; gap: 16px; }
