@@ -1,5 +1,5 @@
 // Мелкие кирпичи интерфейса: безопасный текст, окна, уведомления, значки рангов и героев.
-import { meta } from './api.js?v=20261116001827';
+import { meta } from './api.js?v=20261116003854';
 
 export const $ = (sel, root) => (root || document).querySelector(sel);
 export const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -50,6 +50,38 @@ export const ICON = {
   twitch: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4.3 2 3 5.6v14.3h4.9V22h2.7l2.6-2.1h4L22 15V2H4.3Zm15.9 12.1-3 3h-4.9l-2.6 2.1v-2.1H5.7V3.8h14.5v10.3ZM17.1 7.6v5.2h-1.8V7.6h1.8Zm-4.9 0v5.2h-1.8V7.6h1.8Z"/></svg>',
   steam: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-9.96 9.1l5.36 2.2a2.8 2.8 0 0 1 1.76-.5l2.39-3.45v-.05a3.77 3.77 0 1 1 3.77 3.77h-.09l-3.4 2.43a2.83 2.83 0 0 1-5.6.56l-3.83-1.58A10 10 0 1 0 12 2Zm-3.7 15.17-1.23-.5a2.12 2.12 0 1 0 1.2-2.87l1.27.52a1.56 1.56 0 1 1-1.24 2.85Zm9.53-7.87a2.51 2.51 0 1 0-5.02 0 2.51 2.51 0 0 0 5.02 0Zm-4.4 0a1.89 1.89 0 1 1 3.78 0 1.89 1.89 0 0 1-3.78 0Z"/></svg>',
 };
+
+// ---- обновление страницы на месте
+// Новая разметка не заменяет старую целиком, а накладывается на неё: совпавшие элементы остаются теми же узлами,
+// меняются только их текст и атрибуты. Иначе при частых обновлениях (люди записываются, голосуют) кнопка под
+// курсором успевала смениться между нажатием и отпусканием, и нажатие пропадало.
+function syncAttrs(a, b) {
+  for (const at of Array.from(a.attributes)) if (!b.hasAttribute(at.name)) a.removeAttribute(at.name);
+  for (const at of Array.from(b.attributes)) if (a.getAttribute(at.name) !== at.value) a.setAttribute(at.name, at.value);
+}
+function syncKids(a, b) {
+  let x = a.firstChild;
+  let y = b.firstChild;
+  while (y) {
+    const ny = y.nextSibling;
+    if (!x) a.appendChild(y);
+    else if (x.nodeType !== y.nodeType || x.nodeName !== y.nodeName) {
+      const nx = x.nextSibling;
+      a.replaceChild(y, x);
+      x = nx;
+    } else {
+      if (x.nodeType === 1) { syncAttrs(x, y); syncKids(x, y); } else if (x.nodeValue !== y.nodeValue) x.nodeValue = y.nodeValue;
+      x = x.nextSibling;
+    }
+    y = ny;
+  }
+  while (x) { const nx = x.nextSibling; a.removeChild(x); x = nx; }
+}
+export function morph(root, html) {
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  syncKids(root, tpl.content);
+}
 
 // ---- уведомления
 export function toast(msg, isErr) {

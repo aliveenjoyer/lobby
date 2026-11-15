@@ -1,10 +1,10 @@
 // Страница кастомки: состав, очередь, команды, драфт, лобби, итог — и пульт стримера.
-import { API, BASE, call, meta } from './api.js?v=20261116001827';
+import { API, BASE, call, meta } from './api.js?v=20261116003854';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, clock, toast, oops, modal, head, closeModal,
-  confirmHold, copy, rankPicker, pickedRank, ICON,
-} from './ui.js?v=20261116001827';
-import { user, login, linkSteam, onUser } from './auth.js?v=20261116001827';
+  confirmHold, copy, rankPicker, pickedRank, ICON, morph,
+} from './ui.js?v=20261116003854';
+import { user, login, linkSteam, onUser } from './auth.js?v=20261116003854';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 const TEAM_GEN = { a: 'Янтаря', b: 'Сапфира' };
@@ -34,6 +34,8 @@ export function mountEvent(root, id, opt) {
   const whereOf = (s, uid) => (!s || !uid ? null : s.seats.includes(uid) ? 'seat' : s.queue.includes(uid) ? 'queue' : null);
   const teamOf = (uid) => (!st.teams ? null : st.teams.a.includes(uid) ? 'a' : st.teams.b.includes(uid) ? 'b' : null);
   const cap = () => st.settings.size * 2;
+  const caps = () => st.settings.teams === 'captains';       // режим капитанов: общий пул, голосование, набор
+  const isReady = (u) => st.ready.includes(u) || !!(st.cards[u] && st.cards[u].guest);
   const now = () => Date.now() / 1000 + skew;
 
   // ------------------------------------------------------------ связь
@@ -115,7 +117,7 @@ export function mountEvent(root, id, opt) {
 
   function stepsHtml() {
     const drafting = st.phase === 'teams' && st.draft && !st.draft.done;
-    const cur = st.phase === 'closed' ? 'closed' : drafting ? 'draft' : st.phase;
+    const cur = st.phase === 'closed' ? 'closed' : drafting ? 'draft' : st.phase === 'pick' ? 'teams' : st.phase;
     const list = STEPS.filter((x) => x[0] !== 'draft' || st.settings.draft !== 'none');
     const idx = list.findIndex((x) => x[0] === cur);
     return `<ol class="steps">${list.map((x, i) => `<li class="${i === idx ? 'on' : i < idx || cur === 'closed' ? 'done' : ''}">${x[1]}</li>`).join('')}</ol>`;
@@ -126,9 +128,10 @@ export function mountEvent(root, id, opt) {
     const c = card(uid);
     const tags = [];
     if (c.live) tags.push('<span class="tag live">LIVE</span>');
+    if (o.votes) tags.push(`<span class="tag cap">${o.votes} ${plural(o.votes, 'голос', 'голоса', 'голосов')}</span>`);
     if (o.cap) tags.push('<span class="tag cap">капитан</span>');
     if (c.guest) tags.push('<span class="tag">гость</span>');
-    if (!opt.obs) {
+    if (!opt.obs && !o.extra) {
       for (const f of c.flags || []) if (FLAG[f] && (f !== 'nosteam' || !c.flags.includes('manual'))) tags.push(`<span class="tag">${FLAG[f]}</span>`);
       if (isHost() && st.pinned.includes(uid)) tags.push('<span class="tag">закреплён</span>');
     }
@@ -136,28 +139,61 @@ export function mountEvent(root, id, opt) {
     const pick = d && d.picks[uid];
     const turn = d && !d.done && d.steps[d.i].uid === uid;
     let dot = '';
-    if (st.check && !c.guest) dot = `<span class="dot ${st.check.ready.includes(uid) ? 'ok' : ''}" title="${st.check.ready.includes(uid) ? 'готов' : 'ещё не подтвердил'}"></span>`;
+    if (o.pool) dot = `<span class="dot ${o.ready ? 'ok' : ''}" title="${o.ready ? 'готов' : 'не отметил готовность'}"></span>`;
+    else if (st.check && !c.guest) dot = `<span class="dot ${st.check.ready.includes(uid) ? 'ok' : ''}" title="${st.check.ready.includes(uid) ? 'готов' : 'ещё не подтвердил'}"></span>`;
     else if (st.lobby && st.lobby.mode === 'bot' && st.phase === 'lobby' && st.lobby.inside.length) {
       dot = `<span class="dot ${st.lobby.inside.includes(uid) ? 'ok' : ''}" title="${st.lobby.inside.includes(uid) ? 'в лобби' : 'ещё не в лобби'}"></span>`;
     }
     const sub = c.badge ? `${esc(badgeName(c.badge))}${c.pts != null && !opt.obs ? ' · <span class="num">' + fmt(c.pts) + '</span>' : ''}` : 'ранг неизвестен';
-    const right = pick ? heroImg(pick, 'pick') : `<span class="mains">${(c.mains || []).map((h) => heroImg(h)).join('')}</span>`;
+    const right = pick ? heroImg(pick, 'pick') : o.extra ? '' : `<span class="mains">${(c.mains || []).map((h) => heroImg(h)).join('')}</span>`;
     const drag = isHost() && st.teams && (st.phase === 'teams' || st.phase === 'lobby') && o.team ? ' draggable="true"' : '';
     return `<button class="slot ${uid === meId() ? 'me-row' : ''} ${turn ? 'turn' : ''}" data-uid="${esc(uid)}"${drag}>
       ${o.pos ? `<span class="pos">${o.pos}</span>` : ''}${ava(c)}
       <span class="who"><span class="nm"><b>${esc(c.name)}</b>${tags.join('')}</span><span class="sub">${sub}</span></span>
-      ${right}${dot}${badgeImg(c.badge)}</button>`;
+      ${right}${o.extra || ''}${dot}${badgeImg(c.badge)}</button>`;
   }
 
   // Свободное место: нажал — сел (или вошёл, если ещё не вошёл). Тем, кто уже записан, это просто пустая строка.
   function freeSlot(first) {
-    const open = !opt.obs && ['gather', 'teams', 'lobby'].includes(st.phase) && !st.queue.length && !whereOf(st, meId());
+    const open = !opt.obs && !caps() && ['gather', 'teams', 'lobby'].includes(st.phase) && !st.queue.length && !whereOf(st, meId());
     if (!open) return '<div class="slot free">Свободно</div>';
     return `<button class="slot free take ${first ? 'first' : ''}" data-act="${user.me ? 'join' : 'login'}">${first ? '+ Занять слот' : 'Свободно'}</button>`;
   }
 
+  // Общий пул записавшихся. voting — идёт набор: видны голоса и кнопка «Голосовать»; иначе капитаны берут игроков.
+  function poolHtml(voting) {
+    const uid = meId();
+    const cnt = {};
+    for (const t of Object.values(st.votes)) cnt[t] = (cnt[t] || 0) + 1;
+    const mine = uid ? st.votes[uid] : null;
+    const canVote = voting && uid && st.queue.includes(uid);
+    const turn = st.pick && st.pick.turn;
+    const canPick = !voting && turn && (isHost() || st.teams[turn][0] === uid);
+    const ready = st.queue.filter(isReady).length;
+    const list = voting ? st.queue : st.queue.filter(isReady).concat(st.queue.filter((u) => !isReady(u)));
+    const rows = list.map((u) => {
+      let extra = '';
+      if (canVote) extra = `<span class="mini ${mine === u ? 'on' : ''}" role="button" data-vote="${esc(u)}">${mine === u ? 'Твой голос' : 'Голосовать'}</span>`;
+      else if (canPick && isReady(u)) extra = `<span class="mini on" role="button" data-pick="${esc(u)}">Взять</span>`;
+      return slot(u, { pool: true, ready: isReady(u), votes: voting ? cnt[u] : 0, extra });
+    }).join('');
+    const head = voting ? `записались ${st.queue.length} · готовы ${ready} · нужно ${cap()}` : `в пуле ${st.queue.length} · готовы ${ready}`;
+    return `<section class="card" ${voting ? '' : 'style="margin-top:12px"'}><header><h2>${voting ? 'Игроки' : 'Пул игроков'}</h2><span class="dim num">${head}</span></header>
+      <div class="body" style="padding:10px 0 0">${rows ? `<div class="slots pool" style="border-top:1px solid var(--line)">${rows}</div>`
+    : '<div class="empty" style="padding:14px 16px 18px">Пока никто не записался</div>'}</div></section>`;
+  }
+
+  function pickBar() {
+    const turn = st.pick && st.pick.turn;
+    if (st.phase !== 'pick' || !turn) return '';
+    const capUid = st.teams[turn][0];
+    return `<div class="sumbar"><span>Выбирает капитан команды «${TEAM[turn]}»: <b>${capUid ? esc(card(capUid).name) : 'стример'}</b></span>
+      ${st.pick.until ? `<span class="timer mono" data-until="${st.pick.until}"></span>` : ''}</div>`;
+  }
+
   function rosterHtml() {
     const size = st.settings.size;
+    if (caps() && !st.teams) return opt.obs ? '' : poolHtml(true);
     if (!st.teams) {
       const rows = st.seats.map((u) => slot(u));
       for (let i = st.seats.length; i < cap(); i++) rows.push(freeSlot(i === st.seats.length));
@@ -176,44 +212,61 @@ export function mountEvent(root, id, opt) {
     };
     const bar = st.sums && !opt.obs ? `<div class="sumbar"><span>Баланс: <b>${esc(st.sums.words)}</b></span>
       ${st.dirty ? '<span class="chip warn">состав изменился</span>' : `<span class="num">разница ${fmt(st.sums.diff)}</span>`}</div>` : '';
-    return `<div>${bar}<div class="teams">${col('a')}${col('b')}</div></div>`;
+    return `<div>${pickBar()}${bar}<div class="teams">${col('a')}${col('b')}</div>${caps() && st.phase === 'pick' && !opt.obs ? poolHtml(false) : ''}</div>`;
   }
 
+  // Экран драфта: лента ходов, две команды со слотами пиков и банов, таймер по центру, сетка героев.
   function draftHtml() {
     const d = st.draft;
     if (!d) return '';
+    const t = st.teams;
     const step = d.done ? null : d.steps[d.i];
     const banned = new Set(d.bans.filter(Boolean));
-    const picked = new Set(Object.values(d.picks));
-    let turn = '<div class="dturn">Драфт окончен. Берите в игре своих героев.</div>';
-    let can = false;
-    let mains = [];
-    if (step) {
-      const capUid = st.teams[step.team][0];
-      const who = step.t === 'ban' ? card(capUid) : card(step.uid);
-      can = isHost() || meId() === capUid || (step.t === 'pick' && meId() === step.uid);
-      mains = step.t === 'pick' ? (card(step.uid).mains || []) : [];
-      turn = `<div class="dturn ${step.team}">${step.t === 'ban' ? 'Бан' : 'Выбор героя'}: ${TEAM[step.team]} · ходит ${esc(who.name)}${can ? ' — твой ход' : ''}</div>`;
-    }
-    const banRow = (k) => {
-      const items = d.steps.map((x, i) => ({ x, i })).filter((o) => o.x.t === 'ban' && o.x.team === k);
-      return `<span class="set">Баны ${TEAM_GEN[k]}: ${items.map((o) => {
-        if (o.i >= d.bans.length) return '<span class="skip">·</span>';
-        return d.bans[o.i] ? heroImg(d.bans[o.i], 'm') : '<span class="skip" title="пропущен">—</span>';
-      }).join('')}</span>`;
-    };
-    const tiles = meta.heroes.map((h) => {
-      const off = banned.has(h.id) || (!st.settings.dup && picked.has(h.id));
-      const cls = [off ? 'off' : '', banned.has(h.id) ? 'ban' : '', selHero === h.id ? 'sel' : '', mains.includes(h.id) ? 'main' : '', can ? '' : 'idle'].join(' ');
-      return `<button class="htile ${cls}" data-hero="${h.id}" ${can && !off ? '' : 'tabindex="-1"'}>
-        <img src="${esc(h.icon)}" alt="" loading="lazy"><span>${esc(h.name)}</span></button>`;
+    const taker = {};
+    for (const [u, h] of Object.entries(d.picks)) taker[h] = u;
+    const capUid = step ? t[step.team][0] : null;
+    const actor = step ? (step.t === 'ban' ? capUid : step.uid) : null;
+    const can = !!step && !opt.obs && (isHost() || meId() === capUid || (step.t === 'pick' && meId() === step.uid));
+    const mains = step && step.t === 'pick' ? (card(step.uid).mains || []) : [];
+    const tname = (k) => (t[k].length ? 'Команда ' + esc(card(t[k][0]).name) : TEAM[k]);
+    const strip = d.steps.map((x, i) => `<i class="${x.team} ${d.done || i < d.i ? 'done' : i === d.i ? 'cur' : ''}">${x.t === 'ban' ? 'бан' : 'пик'}</i>`).join('');
+    const picks = (k) => t[k].map((u) => {
+      const h = d.picks[u];
+      const hero = h && meta.byId.get(h);
+      const cur = step && step.t === 'pick' && step.uid === u;
+      return `<div class="dslot ${cur ? 'cur' : ''}">${hero && (hero.card || hero.icon) ? `<img src="${esc(hero.card || hero.icon)}" alt="${esc(hero.name)}">` : `<span>${h ? esc(heroName(h)) : '?'}</span>`}
+        <b>${esc(card(u).name)}</b></div>`;
     }).join('');
-    const go = step && can && selHero && !banned.has(selHero)
-      ? `<div class="row" style="margin-top:12px"><button class="btn primary" data-act="draft_go">${step.t === 'ban' ? 'Забанить' : 'Взять'}: ${esc(heroName(selHero))}</button></div>` : '';
-    return `<section class="card draft"><header><div><h2>Драфт</h2><div style="margin-top:6px">${turn}</div></div>
-      ${step ? `<span class="timer mono" data-until="${d.until}"></span>` : ''}</header>
-      <div class="body"><div class="bans">${banRow('a')}${banRow('b')}</div>${go}
-      ${d.done ? '' : `<div class="hgrid">${tiles}</div>`}</div></section>`;
+    const bans = (k) => d.steps.map((x, i) => ({ x, i })).filter((o) => o.x.t === 'ban' && o.x.team === k).map((o) => {
+      if (o.i >= d.bans.length) return `<div class="dban ${!d.done && o.i === d.i ? 'cur' : ''}"></div>`;
+      const h = d.bans[o.i];
+      return h ? `<div class="dban full" title="${esc(heroName(h))}">${heroImg(h)}</div>` : '<div class="dban" title="бан пропущен">—</div>';
+    }).join('');
+    const mid = step
+      ? `<div class="dkind ${step.team}">${step.t === 'ban' ? 'Бан' : 'Выбор героя'}</div><div class="dclock mono" data-until="${d.until}"></div>
+         <div class="dwho">${esc(card(actor).name)}${can && meId() === actor ? ' — твой ход' : ''}</div>`
+      : '<div class="dkind">Драфт окончен</div><div class="dwho">Берите в игре своих героев</div>';
+    let go = '';
+    if (step && can) {
+      go = selHero && !banned.has(selHero)
+        ? `<button class="btn primary big" data-act="draft_go">${step.t === 'ban' ? 'Забанить' : 'Взять'}: ${esc(heroName(selHero))}</button>`
+        : `<span class="dim">Выбери героя ниже${isHost() && meId() !== actor ? ': ты ходишь за ' + esc(card(actor).name) : ''}</span>`;
+    } else if (step) go = '<span class="dim">Ждём хода</span>';
+    const tiles = d.done ? '' : meta.heroes.map((h) => {
+      const ban = banned.has(h.id);
+      const who = taker[h.id];
+      const off = ban || (!st.settings.dup && who);
+      const cls = [off ? 'off' : '', selHero === h.id ? 'sel' : '', mains.includes(h.id) ? 'main' : '', can ? '' : 'idle'].join(' ');
+      const mark = ban ? '<em class="x">бан</em>' : who ? `<em class="${teamOf(who) || ''}">взят</em>` : '';
+      return `<button class="hcard ${cls}" data-hero="${h.id}" ${can && !off ? '' : 'tabindex="-1"'}>
+        ${h.card || h.icon ? `<img src="${esc(h.card || h.icon)}" alt="" loading="lazy">` : ''}<span>${esc(h.name)}</span>${mark}</button>`;
+    }).join('');
+    return `<section class="card draft2">${d.done ? '' : `<div class="dstrip">${strip}</div>`}
+      <div class="dhead"><b class="a">${tname('a')}</b><span>VS</span><b class="b">${tname('b')}</b></div>
+      <div class="dboard"><div class="dside a"><div class="dpicks" style="--n:${Math.max(t.a.length, 1)}">${picks('a')}</div><div class="dbans">${bans('a')}</div></div>
+        <div class="dmid">${mid}</div>
+        <div class="dside b"><div class="dpicks" style="--n:${Math.max(t.b.length, 1)}">${picks('b')}</div><div class="dbans">${bans('b')}</div></div></div>
+      ${d.done ? '' : `<div class="dgo">${go}</div><div class="hgrid2">${tiles}</div>`}</section>`;
   }
 
   function codeBox() {
@@ -245,6 +298,15 @@ export function mountEvent(root, id, opt) {
     }
     const chk = st.check;
     const ready = chk && chk.ready.includes(me.id);
+    if (w === 'queue' && caps()) {
+      const on = st.ready.includes(me.id);
+      const btn = on ? '<button class="btn ok big" data-act="ready_off">Готов ✓</button>' : '<button class="btn primary big" data-act="ready_on">Я готов</button>';
+      const text = ph === 'gather' ? (on ? 'Ты отмечен готовым. Проголосуй за капитана в списке ниже: двое с большинством голосов наберут команды.'
+        : 'Отметь, что готов играть: капитаны берут только готовых. Потом проголосуй за капитана в списке ниже.')
+        : ph === 'pick' ? (on ? 'Капитаны набирают команды. Ты в списке готовых.' : 'Капитаны набирают команды. Отметь «готов», чтобы тебя могли взять.')
+          : 'Команды на эту игру уже набраны. Ты в пуле на следующую.';
+      return ['Ты записан на игру', text, btn + '<button class="btn" data-act="leave">Отписаться</button>'];
+    }
     if (w === 'queue') {
       const pos = st.queue.indexOf(me.id) + 1;
       const b = [];
@@ -261,6 +323,13 @@ export function mountEvent(root, id, opt) {
       }
       const out = '<button class="btn" data-act="leave">Выйти из состава</button>';
       const k = teamOf(me.id);
+      if (ph === 'pick') {
+        const turn = st.pick && st.pick.turn;
+        if (turn === k && st.teams[k][0] === me.id) {
+          return ['Твой ход, капитан', `Нажми «Взять» у готового игрока в пуле ниже.${st.pick.until ? ` Осталось <span class="timer" data-until="${st.pick.until}"></span>, потом сайт возьмёт сильнейшего за тебя.` : ''}`, ''];
+        }
+        return [`Ты в команде «${TEAM[k] || '…'}»`, st.teams[k][0] === me.id ? 'Сейчас выбирает другой капитан.' : 'Капитаны набирают команды.', out];
+      }
       if (ph === 'gather') return ['Ты в составе', chk ? 'Готовность подтверждена. Ждём остальных.' : 'Жди, пока стример поделит команды. Вкладку не закрывай: может быть проверка готовности.', out];
       if (ph === 'teams') {
         const d = st.draft;
@@ -286,6 +355,11 @@ export function mountEvent(root, id, opt) {
       return ['Укажи свой ранг', 'Привяжи Steam, чтобы ранг подставился сам, или выбери его в профиле.',
         `<button class="btn primary big" data-act="steam">${ICON.steam}<span>Привязать Steam</span></button><a class="btn" href="#/me">Указать вручную</a>`];
     }
+    if (caps()) {
+      const all = st.queue.length + st.seats.length;
+      return ['Запишись на игру', `Записались ${all}. Двух капитанов выбирают голосованием, они набирают команды из тех, кто отметил «готов».`,
+        '<button class="btn primary big" data-act="join">Записаться</button>'];
+    }
     const free = st.seats.length < cap() && !st.queue.length && ['gather', 'teams', 'lobby'].includes(ph);
     if (free) return ['Есть свободное место', `В составе ${st.seats.length} из ${cap()}.`, '<button class="btn primary big" data-act="join">Занять слот</button>'];
     const n = st.queue.length;
@@ -300,6 +374,21 @@ export function mountEvent(root, id, opt) {
     const chk = st.check;
     const chkBtn = chk ? `<button class="btn" data-act="check_off">Отменить проверку · <span class="timer" data-until="${chk.until}"></span></button>`
       : '<button class="btn" data-act="check">Проверка готовности</button>';
+    if (caps() && ph === 'gather') {
+      const all = st.queue.length;
+      const ready = st.queue.filter(isReady).length;
+      const voted = Object.keys(st.votes).length;
+      return [`Записались ${all}, готовы ${ready} из нужных ${cap()}`, all < 2 ? 'Кинь ссылку в чат: зрители записываются, отмечают «готов» и голосуют за капитанов.'
+        : `Проголосовали ${voted}. Когда готовых хватает, выбери капитанов: по голосам или назначь сам. Дальше они набирают команды.`,
+        `<button class="btn primary big" data-act="captains_votes" ${all < 2 ? 'disabled' : ''}>Капитаны по голосам</button>
+         <button class="btn" data-act="captains_manual" ${all < 2 ? 'disabled' : ''}>Назначить капитанов</button>
+         <button class="btn" data-act="copy_link">Ссылка для чата</button>${ready ? '<button class="btn ghost" data-act="ready_reset">Сбросить отметки «готов»</button>' : ''}`];
+    }
+    if (caps() && ph === 'pick') {
+      const turn = st.pick && st.pick.turn;
+      return ['Капитаны набирают команды', turn ? `Сейчас выбирает «${TEAM[turn]}». Ты можешь взять игрока за капитана кнопкой «Взять» в пуле.` : 'Команды собраны.',
+        '<button class="btn primary big" data-act="pick_done">Закончить набор</button><button class="btn ghost" data-act="unteam">Начать набор заново</button>'];
+    }
     if (ph === 'gather') {
       if (n < 2) {
         return [`Набор открыт: ${n} из ${cap()}`, 'Кинь ссылку в чат, чтобы зрители заняли слоты. Делить команды можно, когда в составе хотя бы двое.',
@@ -310,7 +399,8 @@ export function mountEvent(root, id, opt) {
     }
     if (ph === 'teams') {
       const d = st.draft;
-      const again = '<button class="btn" data-act="balance">Поделить заново</button><button class="btn ghost" data-act="unteam">Вернуться к набору</button>';
+      const again = caps() ? '<button class="btn ghost" data-act="unteam">Переизбрать капитанов</button>'
+        : '<button class="btn" data-act="balance">Поделить заново</button><button class="btn ghost" data-act="unteam">Вернуться к набору</button>';
       if (st.dirty) return ['Состав изменился', 'Кто-то вышел или сел после деления. Подели команды заново или поправь вручную: перетащи игрока на другого.', `<button class="btn primary big" data-act="balance">Поделить заново</button>${chkBtn}`];
       if (st.settings.draft !== 'none' && !d) return ['Команды готовы', 'Дальше драфт: ' + (st.settings.draft === 'bans' ? 'капитаны банят героев по очереди.' : 'баны, затем игроки по очереди берут героев.'), `<button class="btn primary big" data-act="draft">Начать драфт</button>${again}${chkBtn}`];
       if (d && !d.done) return ['Идёт драфт', 'Ты можешь сделать ход за любого игрока: выбери героя ниже.', '<button class="btn" data-act="draft_off">Сбросить драфт</button>'];
@@ -356,9 +446,10 @@ export function mountEvent(root, id, opt) {
   }
 
   function queueHtml() {
+    if (caps() && (st.phase === 'gather' || st.phase === 'pick')) return '';
     const rows = st.queue.map((u, i) => slot(u, { pos: i + 1 })).join('');
-    return `<section class="card queue"><header><h2>Очередь</h2><span class="dim num">${st.queue.length}</span></header>
-      <div class="body" style="padding:10px 0 0">${rows ? `<div class="slots" style="border-top:1px solid var(--line)">${rows}</div>` : '<div class="empty" style="padding:14px 16px 18px">Очередь пуста</div>'}</div></section>`;
+    return `<section class="card queue"><header><h2>${caps() ? 'Пул игроков' : 'Очередь'}</h2><span class="dim num">${st.queue.length}</span></header>
+      <div class="body" style="padding:10px 0 0">${rows ? `<div class="slots" style="border-top:1px solid var(--line)">${rows}</div>` : `<div class="empty" style="padding:14px 16px 18px">${caps() ? 'В пуле никого' : 'Очередь пуста'}</div>`}</div></section>`;
   }
 
   function hostInfoHtml() {
@@ -371,7 +462,13 @@ export function mountEvent(root, id, opt) {
     return `<section class="card"><header><h2>${esc(st.host.name)}</h2></header><div class="body" style="display:grid;gap:14px">${parts.join('')}</div></section>`;
   }
 
-  const howHtml = () => `<section class="card"><header><h2>Как это работает</h2></header><div class="body"><ol class="how">
+  const howCaps = () => `<section class="card"><header><h2>Как это работает</h2></header><div class="body"><ol class="how">
+    <li>Войди через Twitch и один раз привяжи Steam: ранг и герои подставятся сами.</li>
+    <li>Запишись на игру и отметь «готов». Записаться может сколько угодно людей.</li>
+    <li>Проголосуй за капитана. Двое с большинством голосов по очереди набирают команды из готовых.</li>
+    <li>Драфт: по два бана с каждой стороны, затем герои по одному. Код лобби увидят только игроки команд.</li></ol></div></section>`;
+  const howHtml = () => (caps() ? howCaps() : howAuto());
+  const howAuto = () => `<section class="card"><header><h2>Как это работает</h2></header><div class="body"><ol class="how">
     <li>Войди через Twitch и один раз привяжи Steam: ранг и герои подставятся сами.</li>
     <li>Займи слот. Мест нет — встань в очередь: она играет следующую игру первой.</li>
     <li>Стример делит команды: сайт перебирает все варианты и берёт самые ровные.</li>
@@ -396,6 +493,7 @@ export function mountEvent(root, id, opt) {
       line = `${step.t === 'ban' ? 'Бан' : 'Пик'}: ${TEAM[step.team]} · <span class="timer mono" data-until="${d.until}"></span>`;
     } else if (st.match && st.match.result) line = `Победил ${TEAM[st.match.result.winner]}`;
     else line = esc(line);
+    if (d && st.phase === 'teams') return `<div class="obsbox wide">${draftHtml()}</div>`;      // драфт на стриме — тем же экраном
     const body = st.teams ? rosterHtml() : `<div class="team card"><div class="slots">${st.seats.map((u) => slot(u)).join('') || '<div class="slot free">Набор открыт</div>'}</div></div>`;
     return `<div class="obsbox"><div class="obst"><span>${line}</span><span class="dim num">${st.seats.length} из ${cap()}</span></div>${body}</div>`;
   }
@@ -406,12 +504,13 @@ export function mountEvent(root, id, opt) {
     if (opt.obs) html = obsHtml();
     else {
       html = `${headHtml()}${stepsHtml()}${st.note ? `<div class="note">${esc(st.note)}</div>` : ''}
-        <div class="egrid"><div class="col">${actionHtml()}${st.draft && !st.draft.done ? draftHtml() + rosterHtml() : rosterHtml() + draftHtml()}</div>
+        ${st.draft && st.phase !== 'done' ? draftHtml() : ''}
+        <div class="egrid"><div class="col">${actionHtml()}${rosterHtml()}</div>
         <div class="col">${queueHtml()}${hostInfoHtml()}${howHtml()}</div></div>${hostBar()}`;
     }
     if (html !== lastHtml) {
       lastHtml = html;
-      root.innerHTML = html;
+      morph(root, html);
       tick();
     }
     // число зрителей меняется часто: ради него страницу не перерисовываем
@@ -421,7 +520,10 @@ export function mountEvent(root, id, opt) {
 
   function tick() {
     const t = now();
-    for (const el of root.querySelectorAll('[data-until]')) el.textContent = clock(+el.dataset.until - t);
+    for (const el of root.querySelectorAll('[data-until]')) {
+      const txt = clock(+el.dataset.until - t);
+      if (el.textContent !== txt) el.textContent = txt;
+    }
   }
   const ticker = setInterval(tick, 250);
 
@@ -547,7 +649,9 @@ export function mountEvent(root, id, opt) {
         <label class="field"><span>Формат</span>${sel('size', sizes, s.size)}</label>
         <label class="field"><span>Режим</span>${sel('mode', meta.modes, s.mode)}</label>
         <label class="field"><span>Регион сервера</span>${sel('region', meta.regions, s.region)}</label>
-        <label class="field"><span>Драфт</span>${sel('draft', meta.drafts, s.draft)}</label>
+        <label class="field"><span>Как набираем команды</span>${sel('teams', meta.teams, s.teams)}</label>
+        <label class="field"><span>Драфт героев</span>${sel('draft', meta.drafts, s.draft)}</label>
+        <label class="field"><span>Порядок выбора героев</span>${sel('order', meta.orders, s.order)}</label>
         <label class="field"><span>Банов на команду</span>${sel('bans', { 1: '1', 2: '2', 3: '3', 4: '4' }, s.bans)}</label>
         <label class="field"><span>Секунд на ход драфта</span>${sel('pick_seconds', { 15: '15', 20: '20', 30: '30', 45: '45', 60: '60' }, s.pick_seconds)}</label>
       </div>
@@ -565,13 +669,30 @@ export function mountEvent(root, id, opt) {
     $('#set-save', m.el).addEventListener('click', async () => {
       const f = new FormData($('#set-form', m.el));
       const g = (n) => f.get(n);
-      const settings = { size: +g('size'), mode: g('mode'), region: g('region'), draft: g('draft'), bans: +g('bans'), pick_seconds: +g('pick_seconds'),
+      const settings = { size: +g('size'), mode: g('mode'), region: g('region'), draft: g('draft'), teams: g('teams'), order: g('order'), bans: +g('bans'), pick_seconds: +g('pick_seconds'),
         need_steam: f.has('need_steam'), rotation: f.has('rotation'), dup: f.has('dup'), lanes: f.has('lanes'), cheats: f.has('cheats') };
       if (!await act('settings', { settings })) return;
       const title = String(g('title')).trim();
       if (title && title !== st.title) await act('title', { title });
       if (String(g('note')).trim() !== (st.note || '')) await act('note', { note: String(g('note')) });
       m.close();
+    });
+  }
+
+  function captainsModal() {
+    const cnt = {};
+    for (const t of Object.values(st.votes)) cnt[t] = (cnt[t] || 0) + 1;
+    const list = st.queue.slice().sort((a, b) => (cnt[b] || 0) - (cnt[a] || 0));
+    const opts = (skip) => list.map((u, i) => `<option value="${esc(u)}" ${i === skip ? 'selected' : ''}>${esc(card(u).name)} · ${esc(badgeName(card(u).badge))}${cnt[u] ? ' · голосов: ' + cnt[u] : ''}</option>`).join('');
+    const m = modal(`${head('Назначить капитанов')}<div class="body">
+      <p class="dim">Капитаны по очереди набирают команды из готовых игроков. Первым выбирает тот, кто слабее по рангу.</p>
+      <label class="field"><span>Капитан команды «${TEAM.a}»</span><select class="input" id="cp-a">${opts(0)}</select></label>
+      <label class="field"><span>Капитан команды «${TEAM.b}»</span><select class="input" id="cp-b">${opts(1)}</select></label></div>
+      <footer><button class="btn" data-close>Отмена</button><button class="btn primary" id="cp-go">Начать набор команд</button></footer>`);
+    $('#cp-go', m.el).addEventListener('click', async () => {
+      const a = $('#cp-a', m.el).value, b = $('#cp-b', m.el).value;
+      if (a === b) { toast('Нужны два разных капитана', true); return; }
+      if (await act('captains', { a, b })) m.close();
     });
   }
 
@@ -605,10 +726,16 @@ export function mountEvent(root, id, opt) {
     steam: () => (user.me ? linkSteam() : login()),
     join: async () => {
       const r = await act('join');
-      if (r) toast(r.where === 'seat' ? 'Ты в составе' : 'Ты в очереди');
+      if (r) toast(r.where === 'seat' ? 'Ты в составе' : r.where === 'pool' ? 'Ты записан. Отметь «готов»' : 'Ты в очереди');
     },
     leave: () => act('leave'),
     ready: () => act('ready'),
+    ready_on: () => act('ready', { on: true }),
+    ready_off: () => act('ready', { on: false }),
+    ready_reset: () => act('ready_reset'),
+    captains_votes: () => act('captains'),
+    captains_manual: () => captainsModal(),
+    pick_done: () => act('pick_done'),
     balance: async () => { const r = await act('balance'); if (r && r.variants) showVariants(r.variants); },
     unteam: () => act('unteam'),
     check: () => act('check', { on: true }),
@@ -645,6 +772,10 @@ export function mountEvent(root, id, opt) {
   function onClick(e) {
     const a = e.target.closest('[data-act]');
     if (a) { e.preventDefault(); if (!a.disabled && ACTS[a.dataset.act]) ACTS[a.dataset.act](); return; }
+    const v = e.target.closest('[data-vote]');
+    if (v) { e.preventDefault(); act('vote', { uid: st.votes[meId()] === v.dataset.vote ? null : v.dataset.vote }); return; }
+    const pk = e.target.closest('[data-pick]');
+    if (pk) { e.preventDefault(); act('pick', { uid: pk.dataset.pick }); return; }
     const h = e.target.closest('[data-hero]');
     if (h && !h.classList.contains('off') && !h.classList.contains('idle')) { selHero = +h.dataset.hero === selHero ? null : +h.dataset.hero; render(); return; }
     const s = e.target.closest('[data-uid]');

@@ -1,16 +1,16 @@
 // Лобби: маршруты, шапка, главная, профиль, страница стримера.
-import { call, meta, loadMeta, session } from './api.js?v=20261116001827';
+import { call, meta, loadMeta, session } from './api.js?v=20261116003854';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, toast, oops, modal, head, confirmHold, rankPicker, pickedRank,
   ICON, dateRu,
-} from './ui.js?v=20261116001827';
-import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116001827';
-import { mountEvent } from './event.js?v=20261116001827';
-import { profileBlocks } from './profile.js?v=20261116001827';
+} from './ui.js?v=20261116003854';
+import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116003854';
+import { mountEvent } from './event.js?v=20261116003854';
+import { profileBlocks } from './profile.js?v=20261116003854';
 
 const view = $('#view');
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
-const PHASE = { gather: 'набор', teams: 'команды готовы', lobby: 'лобби открыто', live: 'идёт игра', done: 'игра окончена' };
+const PHASE = { gather: 'набор', pick: 'капитаны набирают команды', teams: 'команды готовы', lobby: 'лобби открыто', live: 'идёт игра', done: 'игра окончена' };
 let unmount = null;
 let seq = 0;
 let timer = 0;
@@ -67,7 +67,7 @@ async function home(fresh) {
     if (me && me.can_host) btn.push(mine ? `<a class="btn primary big" href="#/${esc(me.login)}">Открыть мою кастомку</a>` : '<button class="btn primary big" data-go="create">Создать кастомку</button>');
     if (me && !me.steam) btn.push(`<button class="btn big" data-go="steam">${ICON.steam}<span>Привязать Steam</span></button>`);
     const rows = events.map((e) => `<a class="card evrow" href="#/${esc(e.host.login)}">${ava(e.host)}
-      <span class="t"><b>${esc(e.title)}</b><span>${PHASE[e.phase] || ''} · в составе ${e.seats} из ${e.cap}${e.queue ? ' · в очереди ' + e.queue : ''}${e.round > 1 ? ' · игра ' + e.round : ''}</span></span>
+      <span class="t"><b>${esc(e.title)}</b><span>${PHASE[e.phase] || ''} · ${e.caps ? `записались ${e.seats + e.queue}, готовы ${e.ready}` : `в составе ${e.seats} из ${e.cap}${e.queue ? ' · в очереди ' + e.queue : ''}`}${e.round > 1 ? ' · игра ' + e.round : ''}</span></span>
       ${e.host.live ? '<span class="chip live">LIVE</span>' : ''}<span class="btn sm">Открыть</span></a>`).join('');
     const prof = me ? `<section class="sec"><h2>Твой профиль</h2><a class="card evrow" href="#/me">${ava(me)}
       <span class="t"><b>${esc(me.name)}</b><span>${me.badge ? esc(badgeName(me.badge)) : 'ранг не указан'}${me.pts != null ? ' · сила ' + fmt(me.pts) : ''}${me.steam ? '' : ' · Steam не привязан'}</span></span>
