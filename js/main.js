@@ -1,13 +1,13 @@
 // Лобби: маршруты, шапка, главная, профиль, страница ведущего.
-import { call, meta, loadMeta, session } from './api.js?v=20261116050043';
+import { call, meta, loadMeta, session } from './api.js?v=20261116051905';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, toast, oops, modal, head, confirmHold,
   ICON, dateRu,
-} from './ui.js?v=20261116050043';
-import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116050043';
-import { mountEvent } from './event.js?v=20261116050043';
-import { profileBlocks } from './profile.js?v=20261116050043';
-import { gameRow, openGame } from './score.js?v=20261116050043';
+} from './ui.js?v=20261116051905';
+import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116051905';
+import { mountEvent } from './event.js?v=20261116051905';
+import { profileBlocks, mountProfile } from './profile.js?v=20261116051905';
+import { gameRow, openGame } from './score.js?v=20261116051905';
 
 const view = $('#view');
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
@@ -125,11 +125,10 @@ function mePage() {
     ? `В игре у тебя пока нет ранга: идёт калибровка${left > 0 ? `, ${plural(left, 'осталась', 'остались', 'осталось')} ${left} ${plural(left, 'игра', 'игры', 'игр')}` : ''}.`
     : 'В игре у тебя пока нет ранга: он появляется после рейтинговых матчей.'}
     Сайт берёт ранг только из игры. Когда он там появится, нажми «Обновить статистику». До тех пор ранг тебе может поставить ведущий лобби.</div>`;
-  view.innerHTML = `<div class="phead">${ava(me, 'l')}<div class="t"><h1>${esc(me.name)}</h1>
-      <div class="row" style="margin-top:6px"><a class="chip" href="https://twitch.tv/${esc(me.login)}" target="_blank" rel="noopener">twitch.tv/${esc(me.login)}</a>
-        ${me.steam ? `<a class="chip" href="https://statlocker.gg/profile/${me.steam}" target="_blank" rel="noopener">Statlocker</a><span class="chip ok">Steam привязан</span>` : ''}</div></div>
-      <button class="btn" data-p="logout">Выйти</button></div>
-    ${me.steam ? profileBlocks({ badge: me.badge, pts: me.pts, src: me.src, stats: me.stats }, me.more) : ''}
+  const who = { name: me.name, avatar: me.avatar, action: '<button class="btn" data-p="logout">Выйти</button>',
+    chips: `<a class="chip" href="https://twitch.tv/${esc(me.login)}" target="_blank" rel="noopener">twitch.tv/${esc(me.login)}</a>
+      ${me.steam ? `<a class="chip" href="https://statlocker.gg/profile/${me.steam}" target="_blank" rel="noopener">Statlocker</a><span class="chip ok">Steam привязан</span>` : ''}` };
+  view.innerHTML = `${profileBlocks({ badge: me.badge, pts: me.pts, src: me.src, stats: me.steam ? me.stats : null }, me.steam ? me.more : null, who)}
     <h2 class="sech">Настройки профиля</h2>
     <div class="grid2">
       <section class="card"><header><h2>Steam и ранг</h2></header><div class="body" style="display:grid;gap:14px">
@@ -164,7 +163,11 @@ function mePage() {
       <button class="btn" data-p="host_add">Добавить</button></div>`;
   };
   if (me.admin) call('/admin/hosts').then(drawHosts).catch(oops);
+  if (unmount) unmount();
+  unmount = mountProfile(view);
   view.onclick = async (e) => {
+    const sg = e.target.closest('[data-site]');
+    if (sg) { const g = ((me.more && me.more.site) || [])[+sg.dataset.site]; if (g) openGame(g); return; }
     const b = e.target.closest('[data-p]');
     if (!b) return;
     const a = b.dataset.p;
@@ -199,14 +202,19 @@ async function userPage(login, fresh) {
   view.innerHTML = '<div class="card empty">Загружаю…</div>';
   const c = (await call('/u/' + encodeURIComponent(login))).user;
   if (!fresh()) return;
-  view.onclick = null;
-  view.innerHTML = `<div class="phead">${ava(c, 'l')}<div class="t"><h1>${esc(c.name)}</h1>
-      <div class="row" style="margin-top:6px">${c.live ? '<span class="chip live">LIVE</span>' : ''}
+  const who = { name: c.name, avatar: c.avatar,
+    chips: `${c.live ? '<span class="chip live">LIVE</span>' : ''}
         <a class="chip" href="https://twitch.tv/${esc(c.login)}" target="_blank" rel="noopener">twitch.tv/${esc(c.login)}</a>
         ${c.steam ? `<a class="chip" href="https://statlocker.gg/profile/${c.steam}" target="_blank" rel="noopener">Statlocker</a>` : ''}
         ${c.host ? `<a class="chip" href="#/${esc(c.login)}">страница ведущего</a>` : ''}
-        ${c.games ? `<span class="chip">${c.games} ${plural(c.games, 'игра', 'игры', 'игр')} на сайте, побед ${c.wins}</span>` : ''}</div></div></div>
-    ${profileBlocks(c, c.more)}`;
+        ${c.games ? `<span class="chip">${c.games} ${plural(c.games, 'игра', 'игры', 'игр')} на сайте, побед ${c.wins}</span>` : ''}` };
+  view.innerHTML = profileBlocks(c, c.more, who);
+  if (unmount) unmount();
+  unmount = mountProfile(view);
+  view.onclick = (e) => {
+    const sg = e.target.closest('[data-site]');
+    if (sg) { const g = ((c.more && c.more.site) || [])[+sg.dataset.site]; if (g) openGame(g); }
+  };
 }
 
 // ---------------------------------------------------------------- страница ведущего
