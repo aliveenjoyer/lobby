@@ -1,12 +1,12 @@
 // Страница лобби. Правило одно: один шаг — одна главная кнопка.
 // Сверху «сцена»: что сейчас происходит и что нажать именно мне (игроку, капитану или ведущему).
 // Под ней комната: места капитанов, список игроков, команды, драфт героев.
-import { API, BASE, call, meta } from './api.js?v=20261116030157';
+import { API, BASE, call, meta } from './api.js?v=20261116031127';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, clock, toast, oops, modal, head, closeModal,
   confirmHold, copy, rankPicker, pickedRank, ICON, morph,
-} from './ui.js?v=20261116030157';
-import { user, login, linkSteam, onUser } from './auth.js?v=20261116030157';
+} from './ui.js?v=20261116031127';
+import { user, login, linkSteam, onUser } from './auth.js?v=20261116031127';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 const TEAM_GEN = { a: 'Янтаря', b: 'Сапфира' };
@@ -26,7 +26,6 @@ export function mountEvent(root, id, opt) {
   let es = null;
   let dead = false;
   let skew = 0;             // часы сервера минус часы браузера, секунды
-  let showCode = false;
   let selHero = null;
   let lastHtml = '';
   let busy = false;
@@ -81,6 +80,8 @@ export function mountEvent(root, id, opt) {
     next.caps = next.caps || NO_CAPS;
     next.voting = next.voting || null;
     next.staff = next.staff || {};
+    next.lobby_wait = !!next.lobby_wait;
+    next.lobby_err = next.lobby_err || null;
     st = next;
     skew = next.now - Date.now() / 1000;
     if (!hostInfo && next.host.login) {
@@ -91,7 +92,6 @@ export function mountEvent(root, id, opt) {
     if (!prev || !pv || isHost() || whereOf(prev, uid) !== whereOf(next, uid) || !!prev.lobby !== !!next.lobby
         || (prev.lobby && next.lobby && prev.lobby.at !== next.lobby.at) || (uid && prev.staff[uid] !== next.staff[uid])) getPrivate();
     if (!next.draft || next.draft.done) selHero = null;
-    if (next.phase !== 'lobby') showCode = false;
     if (prev && prev.voting && !next.voting && next.phase === 'gather' && !opt.obs) {
       const { a, b } = next.caps;
       toast(a && b ? `Капитаны выбраны: ${card(a).name} и ${card(b).name}`
@@ -191,13 +191,6 @@ export function mountEvent(root, id, opt) {
     return viol ? `<div class="viol">${viol}</div>` : '';
   }
 
-  function codeBox() {
-    const code = pv && pv.code;
-    if (!code) return '<div class="codebox"><span class="code hid">•••••</span><span class="dim">Получаю код…</span></div>';
-    return `<div class="codebox"><span class="code ${showCode ? '' : 'hid'}">${showCode ? esc(code) : '•••••'}</span>
-      ${btn('show_code', showCode ? 'Скрыть код' : 'Показать код', '')}${btn('copy_code', 'Скопировать код', 'primary')}</div>`;
-  }
-
   function stage() {
     const uid = meId();
     const host = isHost();
@@ -252,24 +245,36 @@ export function mountEvent(root, id, opt) {
     if (ph === 'lobby') {
       const lb = st.lobby;
       const bot = lb.mode === 'bot';
-      if (host || w === 'seat' || roleOf(uid)) {              // кастеру код тоже виден: он заходит наблюдателем
-        g.title = 'Лобби в игре создано. Заходите';
-        g.text = `Открой Deadlock, зайди в кастомные матчи и введи код.${k ? ` Твоя команда — «${TEAM[k]}».` : roleOf(uid) === 'caster' ? ' Ты кастер: заходи наблюдателем.' : ''}`;
+      const role = roleOf(uid);
+      if (host || w === 'seat' || role) {                     // кастеру код тоже нужен: он заходит наблюдателем
+        const inside = bot && !!uid && lb.inside.includes(uid);          // бот сообщает, кто уже зашёл в лобби
         const dd = st.draft;
-        if (dd && dd.done && dd.mode === 'full' && k) g.text += dd.take[uid] ? ` Твой герой — ${esc(heroName(dd.take[uid]))}.` : ' Не забудь занять героя своей команды ниже.';
-        g.below = codeBox();
-        g.now = !host;
+        const sharing = !!dd && dd.done && dd.mode === 'full' && !!k;
+        const about = `${k ? ` Твоя команда — «${TEAM[k]}».` : role === 'caster' ? ' Ты кастер: заходи наблюдателем.' : ''}${sharing ? (dd.take[uid] ? ` Твой герой — ${esc(heroName(dd.take[uid]))}.` : ' Не забудь занять героя своей команды ниже.') : ''}`;
+        const count = bot && lb.inside.length ? ` В лобби уже ${lb.inside.length} из ${st.seats.length}.` : '';
+        if (inside) {
+          g.title = 'Ты в лобби. Ждём остальных';
+          g.text = `${count}${about}`.trim();
+        } else {
+          g.title = 'Лобби в игре готово';
+          g.text = `Нажми «Подключиться к лобби»: код скопируется, останется вставить его в Deadlock.${about}${count}`;
+          g.now = !host;
+        }
+        const connect = (cls) => btn('connect', 'Подключиться к лобби', cls);
         if (host && bot) {
-          g.text += ` Бот сидит в лобби наблюдателем и уйдёт через <span class="timer mono" data-until="${lb.leaves}"></span>.${lb.inside.length ? ` Зашли ${lb.inside.length} из ${st.seats.length}.` : ''}`;
-          g.btns = [P('start', lb.start_sent ? 'Старт отправлен' : 'Запустить матч', lb.start_sent ? ' disabled' : ''), S('live', 'Матч уже идёт')];
+          g.text += ` Бот уйдёт из лобби через <span class="timer mono" data-until="${lb.leaves}"></span>.`;
+          const first = !k || inside;                         // ведущий уже в лобби (или не играет) — его главный шаг: старт
+          const start = btn('start', lb.start_sent ? 'Старт отправлен' : 'Запустить матч', first ? 'primary xl' : 'xl', lb.start_sent ? ' disabled' : '');
+          g.btns = first ? [start, connect('xl')] : [connect('primary xl'), start];
+          g.quiet = [Q('live', 'Матч уже идёт'), Q('lobby_close', 'Отменить лобби')];
         } else if (host) {
           g.text += ' Когда запустишь матч в игре, нажми «Матч начался».';
-          g.btns = [P('live', 'Матч начался')];
-        }
-        if (host) g.quiet = [Q('lobby_close', 'Отменить лобби')];
+          g.btns = [P('live', 'Матч начался'), connect('xl')];
+          g.quiet = [Q('lobby_close', 'Отменить лобби')];
+        } else g.btns = [connect(inside ? 'xl' : 'primary xl')];
       } else {
         g.title = 'Игроки заходят в игру';
-        g.text = 'Код лобби видят только игроки команд.';
+        g.text = 'Подключиться к лобби могут только игроки команд.';
       }
       return g;
     }
@@ -307,10 +312,24 @@ export function mountEvent(root, id, opt) {
           g.text = `Дальше драфт героев: по ${s.bans} ${plural(s.bans, 'бану', 'бана', 'банов')} с каждой стороны${s.draft === 'full' ? ', потом капитаны по одному берут героев командам' : ''}.`;
           g.btns = [P('draft', 'Начать драфт')];
         } else {
-          g.title = d ? 'Драфт окончен' : 'Команды собраны';
-          g.text = `${sharing ? `Игроки разбирают героев: заняли ${got} из ${st.seats.length}.${k && !mine ? ' Займи героя и ты — нажми на него ниже.' : ''} ` : ''}Создай лобби в игре: бот откроет кастомную игру в Deadlock и выдаст код. Его увидят только игроки команд.`;
-          g.btns = [making ? P('lobby_bot', '<span class="spin"></span><span>Создаю лобби…</span>', ' disabled') : P('lobby_bot', 'Создать лобби в игре'),
+          const share = sharing ? `Игроки разбирают героев: заняли ${got} из ${st.seats.length}.${k && !mine ? ' Займи героя и ты — нажми на него ниже.' : ''} ` : '';
+          const manual = [making ? P('lobby_bot', '<span class="spin"></span><span>Создаю лобби…</span>', ' disabled') : P('lobby_bot', 'Создать лобби в игре'),
             S('lobby_manual', 'Ввести код вручную')];
+          g.title = d ? 'Драфт окончен' : 'Команды собраны';
+          if (st.lobby_wait) {                                // сайт уже создаёт лобби сам
+            g.title = 'Создаю лобби в игре…';
+            g.text = `${share}Бот открывает кастомную игру в Deadlock — это несколько секунд. Потом у игроков появится кнопка «Подключиться к лобби».`;
+            g.btns = [P('lobby_bot', '<span class="spin"></span><span>Создаю лобби…</span>', ' disabled')];
+          } else if (st.lobby_err) {
+            g.title = 'Лобби в игре не создалось';
+            g.text = `${esc(st.lobby_err)}. ${share}Попробуй ещё раз — или создай лобби в игре сам и введи код.`;
+            g.btns = manual;
+          } else {
+            const test = st.seats.some((u) => card(u).bot);
+            g.text = `${share}${test ? 'С тестовыми игроками лобби в игре само не создаётся: настоящих лобби бот даёт немного. Нажми кнопку, если хочешь проверить и этот шаг.'
+              : 'Создай лобби в игре: бот откроет кастомную игру в Deadlock, а у игроков появится кнопка «Подключиться к лобби».'}`;
+            g.btns = manual;
+          }
         }
         g.quiet = caps() ? [Q('unteam', 'Вернуться к записи')]
           : [st.dirty ? '' : Q('balance', 'Поделить заново'), Q('unteam', 'Вернуться к набору'),
@@ -325,10 +344,10 @@ export function mountEvent(root, id, opt) {
           g.text = 'Нажми на героя своей команды ниже — так вы решаете, кто на ком играет. Поменяться можно, пока матч не начался.';
         } else if (sharing) {
           g.title = `Твой герой — ${heroName(mine)}`;
-          g.text = 'Передумал — нажми на другого свободного героя своей команды. Ждём код лобби от ведущего.';
+          g.text = `Передумал — нажми на другого свободного героя своей команды. ${st.lobby_wait ? 'Сайт создаёт лобби в игре: сейчас появится кнопка «Подключиться к лобби».' : 'Ждём лобби в игре.'}`;
         } else {
           g.title = `Ты в команде «${TEAM[k] || '…'}»`;
-          g.text = needDraft ? 'Ждём, когда ведущий начнёт драфт героев.' : 'Ждём код лобби от ведущего.';
+          g.text = needDraft ? 'Ждём, когда ведущий начнёт драфт героев.' : 'Ждём лобби в игре: появится кнопка «Подключиться к лобби».';
         }
         return g;
       }
@@ -1031,6 +1050,7 @@ export function mountEvent(root, id, opt) {
         <label class="field"><span>Режим игры</span>${sel('mode', meta.modes, s.mode)}</label>
         <label class="field"><span>Регион сервера</span>${sel('region', meta.regions, s.region)}</label>
       </div>
+      ${sw('auto_lobby', 'Создавать лобби в игре самому, когда драфт окончен', s.auto_lobby !== false)}
       ${sw('rotation', 'Очередь играет следующую игру первой (когда команды делит сайт)', s.rotation)}
       ${sw('dup', 'Одинаковые герои разрешены', s.dup)}
       ${sw('lanes', 'Случайные линии', s.lanes)}
@@ -1045,7 +1065,7 @@ export function mountEvent(root, id, opt) {
       const f = new FormData($('#set-form', m.el));
       const g = (n) => f.get(n);
       const settings = { size: +g('size'), mode: g('mode'), region: g('region'), draft: g('draft'), teams: g('teams'), order: g('order'), bans: +g('bans'), pick_seconds: +g('pick_seconds'), reserve_seconds: +g('reserve_seconds'),
-        rotation: f.has('rotation'), dup: f.has('dup'), lanes: f.has('lanes'), cheats: f.has('cheats') };
+        auto_lobby: f.has('auto_lobby'), rotation: f.has('rotation'), dup: f.has('dup'), lanes: f.has('lanes'), cheats: f.has('cheats') };
       if (!await act('settings', { settings })) return;
       const title = String(g('title')).trim();
       if (title && title !== st.title) await act('title', { title });
@@ -1098,6 +1118,28 @@ export function mountEvent(root, id, opt) {
       if (!name || !badge) { toast('Нужны имя и ранг', true); return; }
       if (await act('guest', { name, badge })) m.close();
     });
+  }
+
+  // «Подключиться к лобби»: код уже скопирован; показываем, куда его вставить. Сам код скрыт, пока не попросят:
+  // страницу часто показывают на стриме.
+  function connectModal() {
+    const k = teamOf(meId());
+    const m = modal(`${head('Подключиться к лобби')}<div class="body">
+      <p>Код лобби скопирован. Осталось вставить его в игре:</p>
+      <ol class="todo"><li>Открой Deadlock.</li><li>Зайди в кастомные матчи и выбери вход по коду.</li>
+        <li>Вставь код (Ctrl+V)${k ? ` и сядь в команду «${TEAM[k]}»` : ' и зайди наблюдателем'}.</li></ol>
+      <div class="codebox"><span class="code hid" id="cn-code">•••••</span><button class="btn" id="cn-show">Показать код</button>
+        <button class="btn primary" id="cn-copy">Скопировать ещё раз</button></div></div>
+      <footer><a class="btn" href="steam://rungameid/1422450">Запустить Deadlock</a><button class="btn primary" data-close>Готово</button></footer>`);
+    let open = false;
+    $('#cn-show', m.el).addEventListener('click', () => {
+      open = !open;
+      const el = $('#cn-code', m.el);
+      el.textContent = open && pv && pv.code ? pv.code : '•••••';
+      el.classList.toggle('hid', !open);
+      $('#cn-show', m.el).textContent = open ? 'Скрыть код' : 'Показать код';
+    });
+    $('#cn-copy', m.el).addEventListener('click', () => { if (pv && pv.code) copy(pv.code, 'Код лобби скопирован'); });
   }
 
   function codeModal() {
@@ -1178,8 +1220,11 @@ export function mountEvent(root, id, opt) {
     guest: () => guestModal(),
     copy_link: () => copy(BASE + '/#/' + st.host.login, 'Ссылка скопирована: кидай в чат'),
     copy_obs: () => copy(BASE + '/#/obs/' + st.host.login, 'Ссылка для источника «Браузер» в OBS скопирована'),
-    show_code: () => { showCode = !showCode; render(); },
-    copy_code: () => { if (pv && pv.code) copy(pv.code, 'Код скопирован'); },
+    connect: () => {
+      if (!pv || !pv.code) { toast('Код лобби ещё не пришёл. Секунду', true); getPrivate(); return; }
+      copy(pv.code, 'Код лобби скопирован');
+      connectModal();
+    },
   };
 
   function onClick(e) {

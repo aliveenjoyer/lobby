@@ -360,7 +360,7 @@ body.lobbypage .wrap { max-width: 1440px; }
 .heroes.a .tn { color: var(--amber-hi); }
 .heroes.b .tn { color: var(--sapph-hi); }
 .heroes .ts { font-size: 13px; color: var(--dim); }
-.tgrid { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 8px; padding: 12px; }
+.tgrid { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 128px)); gap: 8px; padding: 12px; }     /* карточка не шире 128: в 1 на 1 герой не растягивается на весь блок */
 .tcard { position: relative; aspect-ratio: 3 / 4; padding: 0; border-radius: 10px; overflow: hidden; border: 1px solid var(--line2); background: var(--card2);
   color: #fff; cursor: pointer; }
 .tcard img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
@@ -637,6 +637,9 @@ body.obs::before { display: none; }
 
 /* окна */
 .sheet { background: #151517; }
+.todo { display: grid; gap: 8px; margin: 0; padding-left: 22px; color: var(--dim); }
+.todo li::marker { color: var(--mute); font-family: var(--mono); font-size: 13px; }
+.sheet .codebox { max-width: none; }
 
 /* ---------- телефон */
 @media (max-width: 1400px) { .poolcol .slot .mains { display: none; } }
@@ -655,7 +658,7 @@ body.obs::before { display: none; }
 }
 @media (max-width: 640px) {
   .arena.hsplit { grid-template-columns: minmax(0, 1fr); }       /* на телефоне герои команд — друг под другом, иначе в карточку не попасть */
-  .tgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 8px; gap: 6px; }
+  .tgrid { grid-template-columns: repeat(3, minmax(0, 128px)); padding: 8px; gap: 6px; }
 }
 @media (max-width: 640px) {
   body { font-size: 15px; }

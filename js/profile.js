@@ -1,6 +1,6 @@
 // Подробная статистика игрока: ранг и сила, стиль игры, история ранга, форма, герои, последние матчи.
 // Цифры считает сервер по открытым данным deadlock-api (server/stats.py); здесь только отрисовка.
-import { esc, heroImg, heroName, badgeImg, badgeName, fmt, plural } from './ui.js?v=20261116030157';
+import { esc, heroImg, heroName, badgeImg, badgeName, fmt, plural } from './ui.js?v=20261116031127';
 
 const AXES = [['dmg', 'Урон'], ['farm', 'Фарм'], ['obj', 'Объекты'], ['sup', 'Поддержка'], ['tank', 'Стойкость'], ['surv', 'Выживаемость']];
 const MODE = { r: 'рейтинг', u: 'обычный', b: 'Street Brawl', c: 'кастомка', o: '' };
