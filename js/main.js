@@ -1,13 +1,13 @@
 // Лобби: маршруты, шапка, главная, профиль, страница ведущего.
-import { call, meta, loadMeta, session } from './api.js?v=20261116045703';
+import { call, meta, loadMeta, session } from './api.js?v=20261116050043';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, toast, oops, modal, head, confirmHold,
   ICON, dateRu,
-} from './ui.js?v=20261116045703';
-import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116045703';
-import { mountEvent } from './event.js?v=20261116045703';
-import { profileBlocks } from './profile.js?v=20261116045703';
-import { gameRow, openGame } from './score.js?v=20261116045703';
+} from './ui.js?v=20261116050043';
+import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116050043';
+import { mountEvent } from './event.js?v=20261116050043';
+import { profileBlocks } from './profile.js?v=20261116050043';
+import { gameRow, openGame } from './score.js?v=20261116050043';
 
 const view = $('#view');
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
@@ -73,10 +73,12 @@ async function home(fresh) {
     const prof = me ? `<section class="sec"><h2>Твой профиль</h2><a class="card evrow" href="#/me">${ava(me)}
       <span class="t"><b>${esc(me.name)}</b><span>${me.badge ? esc(badgeName(me.badge)) : me.steam ? 'в игре ранга пока нет' : 'без ранга'}${me.pts != null ? ' · сила ' + fmt(me.pts) : ''}${me.steam ? '' : ' · Steam не привязан'}</span></span>
       ${badgeImg(me.badge)}<span class="btn sm">Открыть</span></a></section>` : '';
+    const played = games.length ? `<section class="sec"><h2>Сыгранные игры</h2>
+      <div class="card"><div class="glist wide">${games.map((g, i) => gameRow(g, i, { host: true })).join('')}</div></div></section>` : '';
     view.innerHTML = `<section class="hello"><h1>Кастомки Deadlock со зрителями</h1>
       <p>Ведущий создаёт лобби и кидает ссылку в чат. Зрители записываются, два капитана набирают команды, потом драфт героев и код для входа в игру.</p>
       ${btn.length ? `<div class="row">${btn.join('')}</div>` : ''}</section>
-      <section class="sec"><h2>Открытые лобби</h2><div class="list">${rows || '<div class="card empty">Сейчас открытых лобби нет. Когда ведущий создаст лобби, оно появится здесь.</div>'}</div></section>${prof}
+      <section class="sec"><h2>Открытые лобби</h2><div class="list">${rows || '<div class="card empty">Сейчас открытых лобби нет. Когда ведущий создаст лобби, оно появится здесь.</div>'}</div></section>${played}${prof}
       <section class="sec"><h2>Как проходит игра</h2><ol class="flow">
         <li><b>Запись</b><span>Зрители заходят по ссылке и жмут «Записаться». Ранг и герои подтягиваются из Steam.</span></li>
         <li><b>Капитаны</b><span>Двое жмут «Стать капитаном» — или ведущий запускает голосование, и капитанов выбирают игроки.</span></li>
@@ -85,11 +87,17 @@ async function home(fresh) {
       </ol></section>`;
   };
   view.innerHTML = '<div class="card empty">Загружаю…</div>';
+  let games = [];              // последние сыгранные игры всех ведущих
+  let shown = '';
   const load = async () => {
-    const d = await call('/events');
-    if (fresh()) draw(d.events);
+    const [d, g] = await Promise.all([call('/events'), call('/games').catch(() => ({ games }))]);
+    games = g.games || [];
+    const key = JSON.stringify([d.events, games, user.me && user.me.id]);
+    if (fresh() && key !== shown) { shown = key; draw(d.events); }       // ничего не изменилось — страницу не трогаем
   };
   view.onclick = async (e) => {
+    const gm = e.target.closest('[data-game]');
+    if (gm) { if (games[+gm.dataset.game]) openGame(games[+gm.dataset.game]); return; }
     const b = e.target.closest('[data-go]');
     if (!b) return;
     if (b.dataset.go === 'login') login();

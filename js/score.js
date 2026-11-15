@@ -1,7 +1,7 @@
 // Таблица матча: живая, пока игра идёт, и итоговая после неё.
 // Одна и та же на странице лобби, в слое для OBS и в прошедших играх на странице ведущего.
-import { meta, call } from './api.js?v=20261116045703';
-import { esc, heroImg, heroName, fmt, plural, clock, dateRu, modal, head } from './ui.js?v=20261116045703';
+import { meta, call } from './api.js?v=20261116050043';
+import { esc, ava, heroImg, heroName, fmt, plural, clock, dateRu, modal, head } from './ui.js?v=20261116050043';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 // колонки с числами; opt — на телефоне прячутся
@@ -162,23 +162,31 @@ export function scoreHtml(t, o) {
 }
 
 // ---- прошедшие игры: строка в списке и окно с таблицей
-const has = (m) => !!(m && m.table && m.table.rows && m.table.rows.length);
+// m — строка списка игр с сервера: { event, round, at, winner, duration, title, kills: [a, b] | null, table: есть ли она }
 // день и время, когда игра закончилась: в один вечер игр бывает несколько
 const when = (m) => `${dateRu(m.at)}, ${new Date(m.at * 1000).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}${m.round > 1 ? ' · игра ' + m.round : ''}`;
 
-export function gameRow(m, i) {
-  const kills = (k) => m.table.rows.filter((r) => r.team === k).reduce((n, r) => n + (r.k || 0), 0);
-  return `<button class="grow ${m.winner}" data-game="${i}">
-    <span class="gw"><span class="tn">${TEAM[m.winner]} победил</span>${has(m) ? `<b>${kills('a')} : ${kills('b')}</b>` : ''}</span>
-    <span class="gd">${when(m)}${m.duration ? ` · шла ${clock(m.duration)}` : ''}${has(m) ? '' : ' · без таблицы'}</span></button>`;
+// o.host — показать, чья это игра (на главной, где игры всех ведущих вперемешку)
+export function gameRow(m, i, o) {
+  const host = o && o.host && m.host ? `<span class="gh">${ava(m.host)}<b>${esc(m.host.name)}</b></span>` : '';
+  return `<button class="grow ${m.winner}" data-game="${i}">${host}
+    <span class="gw"><span class="tn">${TEAM[m.winner]} победил</span>${m.kills ? `<b>${m.kills[0]} : ${m.kills[1]}</b>` : ''}</span>
+    <span class="gd">${when(m)}${m.duration ? ` · шла ${clock(m.duration)}` : ''}${m.table ? '' : ' · без таблицы'}</span></button>`;
 }
 
-export function openGame(m) {
-  const names = (k) => (m.teams && m.teams[k] ? m.teams[k].map((p) => esc(p.name)).join(', ') : '');
-  const body = has(m) ? scoreHtml(Object.assign({}, m.table, { live: false }), { win: m.winner })
-    : `<p class="dim">Таблицы этой игры нет: её сайт ведёт только у матчей, за которыми смог проследить.</p>
-       <p><b class="w a">Янтарь:</b> ${names('a')}</p><p><b class="w b">Сапфир:</b> ${names('b')}</p>`;
-  modal(`${head(when(m))}<div class="body gamebody">
-    <p class="gsum"><b class="w ${m.winner}">Победил ${TEAM[m.winner]}</b>${m.duration ? ` · матч шёл <span class="mono">${clock(m.duration)}</span>` : ''}${m.title ? ` · ${esc(m.title)}` : ''}</p>
-    ${body}</div>`, { wide: true });
+// Окно игры: составы и таблица грузятся, когда игру открыли.
+export async function openGame(m) {
+  const title = `${m.host && m.host.name ? esc(m.host.name) + ' · ' : ''}${when(m)}`;
+  const sum = `<p class="gsum"><b class="w ${m.winner}">Победил ${TEAM[m.winner]}</b>${m.duration ? ` · матч шёл <span class="mono">${clock(m.duration)}</span>` : ''}${m.title ? ` · ${esc(m.title)}` : ''}</p>`;
+  const win = modal(`${head(title)}<div class="body gamebody">${sum}<div class="gload dim">Загружаю таблицу…</div></div>`, { wide: true });
+  const box = win.el.querySelector('.gload');
+  try {
+    const g = await call(`/games/${m.event}/${m.round}`);
+    const names = (k) => (g.teams && g.teams[k] ? g.teams[k].map((p) => esc(p.name)).join(', ') : '');
+    box.outerHTML = g.table && g.table.rows && g.table.rows.length ? scoreHtml(Object.assign({}, g.table, { live: false }), { win: g.winner })
+      : `<p class="dim">Таблицы этой игры нет: её сайт ведёт только у матчей, за которыми смог проследить.</p>
+         <p><b class="w a">Янтарь:</b> ${names('a')}</p><p><b class="w b">Сапфир:</b> ${names('b')}</p>`;
+  } catch (e) {
+    box.textContent = 'Не получилось загрузить игру. Попробуй ещё раз.';
+  }
 }
