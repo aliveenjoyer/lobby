@@ -1,11 +1,11 @@
 // Лобби: маршруты, шапка, главная, профиль, страница стримера.
-import { call, meta, loadMeta, session } from './api.js?v=20261115234546';
+import { call, meta, loadMeta, session } from './api.js?v=20261115235523';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, toast, oops, modal, head, confirmHold, rankPicker, pickedRank,
   ICON, dateRu,
-} from './ui.js?v=20261115234546';
-import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261115234546';
-import { mountEvent } from './event.js?v=20261115234546';
+} from './ui.js?v=20261115235523';
+import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261115235523';
+import { mountEvent } from './event.js?v=20261115235523';
 
 const view = $('#view');
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };

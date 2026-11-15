@@ -1,10 +1,10 @@
 // Страница кастомки: состав, очередь, команды, драфт, лобби, итог — и пульт стримера.
-import { API, BASE, call, meta } from './api.js?v=20261115234546';
+import { API, BASE, call, meta } from './api.js?v=20261115235523';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, clock, toast, oops, modal, head, closeModal,
   confirmHold, copy, rankPicker, pickedRank, ICON,
-} from './ui.js?v=20261115234546';
-import { user, login, linkSteam, onUser } from './auth.js?v=20261115234546';
+} from './ui.js?v=20261115235523';
+import { user, login, linkSteam, onUser } from './auth.js?v=20261115235523';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 const TEAM_GEN = { a: 'Янтаря', b: 'Сапфира' };
@@ -357,7 +357,7 @@ export function mountEvent(root, id, opt) {
 
   function hostBar() {
     if (!isHost() || st.phase === 'closed') return '';
-    return `<div class="hostbar"><div class="wrap"><span class="lbl">Пульт · смотрят ${st.viewers}</span>
+    return `<div class="hostbar"><div class="wrap"><span class="lbl">Пульт · смотрят <span data-viewers></span></span>
       <button class="btn sm" data-act="settings">Настройки</button>
       <button class="btn sm" data-act="guest">Добавить гостя</button>
       <button class="btn sm" data-act="copy_link">Ссылка для чата</button>
@@ -387,10 +387,14 @@ export function mountEvent(root, id, opt) {
         <div class="egrid"><div class="col">${actionHtml()}${st.draft && !st.draft.done ? draftHtml() + rosterHtml() : rosterHtml() + draftHtml()}</div>
         <div class="col">${queueHtml()}${hostInfoHtml()}${howHtml()}</div></div>${hostBar()}`;
     }
-    if (html === lastHtml) return;
-    lastHtml = html;
-    root.innerHTML = html;
-    tick();
+    if (html !== lastHtml) {
+      lastHtml = html;
+      root.innerHTML = html;
+      tick();
+    }
+    // число зрителей меняется часто: ради него страницу не перерисовываем
+    const v = root.querySelector('[data-viewers]');
+    if (v) v.textContent = st.viewers;
   }
 
   function tick() {
