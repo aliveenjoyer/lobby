@@ -1,11 +1,11 @@
 // Лобби: маршруты, шапка, главная, профиль, страница стримера.
-import { call, meta, loadMeta, session } from './api.js?v=20261115235523';
+import { call, meta, loadMeta, session } from './api.js?v=20261116000637';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, toast, oops, modal, head, confirmHold, rankPicker, pickedRank,
   ICON, dateRu,
-} from './ui.js?v=20261115235523';
-import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261115235523';
-import { mountEvent } from './event.js?v=20261115235523';
+} from './ui.js?v=20261116000637';
+import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116000637';
+import { mountEvent } from './event.js?v=20261116000637';
 
 const view = $('#view');
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
@@ -26,7 +26,8 @@ function top() {
   const me = user.me;
   const p = parts();
   const nav = [`<a href="#/" class="${p.length ? '' : 'on'}">Кастомки</a>`];
-  if (me && me.can_host) nav.push(`<a href="#/${esc(me.login)}" class="${p[0] === me.login ? 'on' : ''}">Моя страница</a>`);
+  if (me) nav.push(`<a href="#/me" class="${p[0] === 'me' ? 'on' : ''}">Мой профиль</a>`);
+  if (me && me.can_host) nav.push(`<a href="#/${esc(me.login)}" class="${p[0] === me.login ? 'on' : ''}">Моя кастомка</a>`);
   $('#top').innerHTML = `<a class="brand" href="#/"><i></i><span>Лобби</span></a><nav>${nav.join('')}</nav><span class="sp"></span>
     ${me ? `<a class="me" href="#/me" title="Профиль">${ava(me, 's')}<span>${esc(me.name)}</span></a>`
     : `<button class="btn primary sm" id="top-login">${ICON.twitch}<span>Войти</span></button>`}`;
@@ -67,9 +68,12 @@ async function home(fresh) {
     const rows = events.map((e) => `<a class="card evrow" href="#/${esc(e.host.login)}">${ava(e.host)}
       <span class="t"><b>${esc(e.title)}</b><span>${PHASE[e.phase] || ''} · в составе ${e.seats} из ${e.cap}${e.queue ? ' · в очереди ' + e.queue : ''}${e.round > 1 ? ' · игра ' + e.round : ''}</span></span>
       ${e.host.live ? '<span class="chip live">LIVE</span>' : ''}<span class="btn sm">Открыть</span></a>`).join('');
+    const prof = me ? `<section class="sec"><h2>Твой профиль</h2><a class="card evrow" href="#/me">${ava(me)}
+      <span class="t"><b>${esc(me.name)}</b><span>${me.badge ? esc(badgeName(me.badge)) : 'ранг не указан'}${me.pts != null ? ' · сила ' + fmt(me.pts) : ''}${me.steam ? '' : ' · Steam не привязан'}</span></span>
+      <span class="row" style="gap:3px;flex-wrap:nowrap">${(me.mains || []).map((h) => heroImg(h)).join('')}</span>${badgeImg(me.badge)}<span class="btn sm">Открыть</span></a></section>` : '';
     view.innerHTML = `<section class="hello"><h1>Кастомки Deadlock со зрителями</h1>
       <p>Стример открывает игру, зрители занимают слоты. Сайт делит их на равные команды по рангу и выдаёт код лобби.</p>
-      <div class="row">${btn.join('')}</div></section>
+      <div class="row">${btn.join('')}</div></section>${prof}
       <section class="sec"><h2>Сейчас набирают</h2><div class="list">${rows || '<div class="card empty">Сейчас никто не набирает. Когда стример откроет кастомку, она появится здесь.</div>'}</div></section>
       <section class="sec"><h2>Как это работает</h2><div class="steps3">
         <div class="card"><div class="n">01</div><b>Вход и ранг</b><span class="dim">Входишь через Twitch и один раз привязываешь Steam. Ранг и любимые герои подставляются сами.</span></div>

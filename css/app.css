@@ -160,6 +160,12 @@ select.input { appearance: none; padding-right: 30px;
 .col { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
 
 .action { padding: 18px; }
+.action > h2 { margin-bottom: 12px; }
+.you { display: flex; align-items: center; gap: 12px; padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid var(--line); }
+.you .t { flex: 1; min-width: 0; }
+.you .t b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.you .t span { font-size: 13px; color: var(--dim); }
+.you .mains { display: flex; gap: 3px; flex: none; }
 .action h3 { font-size: 18px; }
 .action p { margin-top: 6px; color: var(--dim); }
 .action .row { margin-top: 14px; }
@@ -194,6 +200,9 @@ select.input { appearance: none; padding-right: 30px;
 .slot .pick { width: 34px; height: 34px; border-radius: 8px; }
 .slot.free { cursor: default; color: var(--mute); font-size: 13px; justify-content: center; }
 .slot.free:hover { background: none; }
+.slot.free.take { cursor: pointer; color: var(--dim); }
+.slot.free.take.first { color: var(--text); font-weight: 500; }
+.slot.free.take:hover { background: var(--card2); color: var(--text); }
 .slot.me-row::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 2px; background: #fff; border-radius: 2px; }
 .slot.turn { background: rgba(255, 255, 255, .05); }
 .slot.drag { opacity: .4; }
@@ -346,5 +355,5 @@ body.obs main { padding: 16px; }
   .me span { display: none; }
   .me { padding: 4px; }
 }
-@media (max-width: 480px) { .slot .mains { display: none; } }
+@media (max-width: 480px) { .slot .mains, .you .mains { display: none; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation-duration: 0s !important; } }

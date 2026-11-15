@@ -1,10 +1,10 @@
 // Страница кастомки: состав, очередь, команды, драфт, лобби, итог — и пульт стримера.
-import { API, BASE, call, meta } from './api.js?v=20261115235523';
+import { API, BASE, call, meta } from './api.js?v=20261116000637';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, clock, toast, oops, modal, head, closeModal,
   confirmHold, copy, rankPicker, pickedRank, ICON,
-} from './ui.js?v=20261115235523';
-import { user, login, linkSteam, onUser } from './auth.js?v=20261115235523';
+} from './ui.js?v=20261116000637';
+import { user, login, linkSteam, onUser } from './auth.js?v=20261116000637';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 const TEAM_GEN = { a: 'Янтаря', b: 'Сапфира' };
@@ -88,7 +88,9 @@ export function mountEvent(root, id, opt) {
     try {
       return await call('/events/' + id + '/act', Object.assign({ do: what }, extra || {}));
     } catch (e) {
-      if (e.code === 'auth') login(); else if (!quiet) oops(e);
+      if (e.code === 'auth') login();
+      else if (e.code === 'steam' || e.code === 'norank') needRank(e.message);
+      else if (!quiet) oops(e);
       return null;
     } finally { busy = false; }
   }
@@ -147,11 +149,18 @@ export function mountEvent(root, id, opt) {
       ${right}${dot}${badgeImg(c.badge)}</button>`;
   }
 
+  // Свободное место: нажал — сел (или вошёл, если ещё не вошёл). Тем, кто уже записан, это просто пустая строка.
+  function freeSlot(first) {
+    const open = !opt.obs && ['gather', 'teams', 'lobby'].includes(st.phase) && !st.queue.length && !whereOf(st, meId());
+    if (!open) return '<div class="slot free">Свободно</div>';
+    return `<button class="slot free take ${first ? 'first' : ''}" data-act="${user.me ? 'join' : 'login'}">${first ? '+ Занять слот' : 'Свободно'}</button>`;
+  }
+
   function rosterHtml() {
     const size = st.settings.size;
     if (!st.teams) {
       const rows = st.seats.map((u) => slot(u));
-      for (let i = st.seats.length; i < cap(); i++) rows.push('<div class="slot free">Свободно</div>');
+      for (let i = st.seats.length; i < cap(); i++) rows.push(freeSlot(i === st.seats.length));
       return `<section class="card"><header><h2>Состав</h2><span class="dim num">${st.seats.length} из ${cap()}</span></header>
         <div class="body" style="padding:10px 0 0"><div class="slots pool" style="border-top:1px solid var(--line)">${rows.join('')}</div></div></section>`;
     }
@@ -159,7 +168,7 @@ export function mountEvent(root, id, opt) {
     const col = (k) => {
       const list = st.teams[k];
       const rows = list.map((u, i) => slot(u, { cap: i === 0 && list.length > 1, team: k }));
-      for (let i = list.length; i < size; i++) rows.push('<div class="slot free">Свободно</div>');
+      for (let i = list.length; i < size; i++) rows.push(freeSlot(i === list.length));
       return `<section class="card team ${k} ${res && res.winner === k ? 'win' : ''}" data-team="${k}">
         <header><div class="row" style="justify-content:space-between"><span class="tn">${TEAM[k]}${res && res.winner === k ? ' · победа' : ''}</span>
         <span class="ts num">${st.sums && !opt.obs ? 'сила ' + fmt(st.sums[k]) : ''}</span></div></header>
@@ -258,6 +267,7 @@ export function mountEvent(root, id, opt) {
         const txt = d && !d.done ? 'Идёт драфт: следи за своей очередью ниже.' : d && d.done ? 'Драфт окончен. Ждём код лобби.' : 'Команды готовы. Ждём код лобби.';
         return [`Ты в команде «${TEAM[k] || '…'}»`, txt, out];
       }
+      if (ph === 'lobby' && isHost()) return [`Ты в команде «${TEAM[k] || '…'}»`, 'Код лобби — в пульте ниже. Зайди в игру по нему и займи место в своей команде.', out];
       if (ph === 'lobby') {
         return ['Лобби открыто', `Открой Deadlock, зайди в кастомные матчи и введи код. Займи место в команде «${TEAM[k] || '…'}».`, codeBox() + `<div class="row">${out}</div>`, true];
       }
@@ -268,11 +278,11 @@ export function mountEvent(root, id, opt) {
       }
     }
     if (ph === 'closed') return ['Кастомка закрыта', 'Стример закончил игры на сегодня.', `<a class="btn" href="#/${esc(st.host.login)}">Страница стримера</a>`];
-    if (s.need_steam && !me.steam) {
+    if (s.need_steam && !me.steam && !isHost()) {
       return ['Привяжи Steam', 'Стример просит Steam: по нему сайт узнаёт твой ранг и героев. Это одна кнопка, пароль сайт не видит.',
         `<button class="btn primary big" data-act="steam">${ICON.steam}<span>Привязать Steam</span></button>`];
     }
-    if (!me.steam && !me.manual_badge) {
+    if (!me.steam && !me.manual_badge && !isHost()) {
       return ['Укажи свой ранг', 'Привяжи Steam, чтобы ранг подставился сам, или выбери его в профиле.',
         `<button class="btn primary big" data-act="steam">${ICON.steam}<span>Привязать Steam</span></button><a class="btn" href="#/me">Указать вручную</a>`];
     }
@@ -287,20 +297,21 @@ export function mountEvent(root, id, opt) {
   function hostAction() {
     const ph = st.phase;
     const n = st.seats.length;
-    const w = whereOf(st, meId());
-    const self = ['gather', 'teams', 'lobby'].includes(ph)
-      ? (w ? '<button class="btn ghost" data-act="leave">Выйти из состава самому</button>' : '<button class="btn ghost" data-act="join">Сесть в состав самому</button>') : '';
     const chk = st.check;
     const chkBtn = chk ? `<button class="btn" data-act="check_off">Отменить проверку · <span class="timer" data-until="${chk.until}"></span></button>`
       : '<button class="btn" data-act="check">Проверка готовности</button>';
     if (ph === 'gather') {
-      return [`Набор: ${n} из ${cap()}`, n < 2 ? 'Кинь ссылку на эту страницу в чат. Когда состав соберётся, подели команды.' : 'Когда состав собран, подели команды. Сайт покажет три самых ровных варианта.',
-        `<button class="btn primary big" data-act="balance" ${n < 2 ? 'disabled' : ''}>Поделить команды</button>${chkBtn}${self}`];
+      if (n < 2) {
+        return [`Набор открыт: ${n} из ${cap()}`, 'Кинь ссылку в чат, чтобы зрители заняли слоты. Делить команды можно, когда в составе хотя бы двое.',
+          `<button class="btn primary big" data-act="copy_link">Скопировать ссылку для чата</button>${n ? chkBtn : ''}`];
+      }
+      return [`Набор: ${n} из ${cap()}`, 'Когда состав собран, подели команды. Сайт покажет самые ровные варианты.',
+        `<button class="btn primary big" data-act="balance">Поделить команды</button>${chkBtn}`];
     }
     if (ph === 'teams') {
       const d = st.draft;
       const again = '<button class="btn" data-act="balance">Поделить заново</button><button class="btn ghost" data-act="unteam">Вернуться к набору</button>';
-      if (st.dirty) return ['Состав изменился', 'Кто-то вышел или сел после деления. Подели команды заново или поправь вручную: перетащи игрока на другого.', `<button class="btn primary big" data-act="balance">Поделить заново</button>${chkBtn}${self}`];
+      if (st.dirty) return ['Состав изменился', 'Кто-то вышел или сел после деления. Подели команды заново или поправь вручную: перетащи игрока на другого.', `<button class="btn primary big" data-act="balance">Поделить заново</button>${chkBtn}`];
       if (st.settings.draft !== 'none' && !d) return ['Команды готовы', 'Дальше драфт: ' + (st.settings.draft === 'bans' ? 'капитаны банят героев по очереди.' : 'баны, затем игроки по очереди берут героев.'), `<button class="btn primary big" data-act="draft">Начать драфт</button>${again}${chkBtn}`];
       if (d && !d.done) return ['Идёт драфт', 'Ты можешь сделать ход за любого игрока: выбери героя ниже.', '<button class="btn" data-act="draft_off">Сбросить драфт</button>'];
       return ['Команды готовы', 'Открой лобби: бот создаст его в игре и выдаст код. Код увидят только игроки в слотах.',
@@ -314,7 +325,7 @@ export function mountEvent(root, id, opt) {
         : 'Код разослан игрокам в слотах. Когда запустишь матч в игре, нажми «Матч начался».';
       const b = bot ? `<button class="btn primary big" data-act="start" ${lb.start_sent ? 'disabled' : ''}>${lb.start_sent ? 'Старт отправлен' : 'Старт матча'}</button><button class="btn" data-act="live">Матч начался</button>`
         : '<button class="btn primary big" data-act="live">Матч начался</button>';
-      return ['Лобби открыто', txt, codeBox() + `<div class="row">${b}<button class="btn ghost" data-act="lobby_close">Закрыть лобби</button>${self}</div>`, true];
+      return ['Лобби открыто', txt, codeBox() + `<div class="row">${b}<button class="btn ghost" data-act="lobby_close">Закрыть лобби</button></div>`, true];
     }
     const wins = '<button class="btn amber" data-act="win_a">Победил Янтарь</button><button class="btn sapph" data-act="win_b">Победил Сапфир</button>';
     if (ph === 'live') return ['Матч идёт', st.match && st.match.id ? 'Итог подтянется сам, когда игра закончится. Не подтянулся — отметь победителя.' : 'Когда игра закончится, отметь победителя.', wins];
@@ -327,10 +338,21 @@ export function mountEvent(root, id, opt) {
     return ['Кастомка закрыта', 'Новую можно открыть с главной страницы.', '<a class="btn primary" href="#/">На главную</a>'];
   }
 
+  function youRow() {
+    const me = user.me;
+    const c = st.cards[me.id];
+    const badge = c ? c.badge : me.badge;
+    const pts = c ? c.pts : me.pts;
+    return `<div class="you">${ava(me)}<div class="t"><b>${esc(me.name)}</b><span>${badge ? esc(badgeName(badge)) : 'ранг не указан'}${pts != null ? ' · сила ' + fmt(pts) : ''}</span></div>
+      <span class="mains">${(me.mains || []).map((h) => heroImg(h)).join('')}</span>${badgeImg(badge)}<a class="btn sm" href="#/me">Мой профиль</a></div>`;
+  }
+
   function actionHtml() {
-    const [title, text, buttons, raw] = isHost() ? hostAction() : playerAction();
-    return `<section class="card action"><h3>${esc(title)}</h3><p>${text}</p>${raw ? buttons : `<div class="row">${buttons}</div>`}
-      ${st.phase === 'done' || (st.phase === 'live' && st.match && st.match.result) ? `<div class="dim" style="margin-top:12px;font-size:14px">${resultLine()}</div>` : ''}</section>`;
+    const block = ([title, text, buttons, raw]) => `<h3>${esc(title)}</h3><p>${text}</p>${raw ? buttons : `<div class="row">${buttons}</div>`}`;
+    const res = st.phase === 'done' || (st.phase === 'live' && st.match && st.match.result) ? `<div class="dim" style="margin-top:12px;font-size:14px">${resultLine()}</div>` : '';
+    const host = isHost() && st.phase !== 'closed';
+    const you = `<section class="card action">${user.me ? youRow() : ''}${block(playerAction())}${host ? '' : res}</section>`;
+    return host ? `${you}<section class="card action"><h2>Пульт стримера</h2>${block(hostAction())}${res}</section>` : you;
   }
 
   function queueHtml() {
@@ -404,6 +426,13 @@ export function mountEvent(root, id, opt) {
   const ticker = setInterval(tick, 250);
 
   // ------------------------------------------------------------ окна
+  function needRank(text) {
+    const m = modal(`${head('Нужен ранг')}<div class="body"><p class="dim">${esc(text)}</p></div>
+      <footer><a class="btn" href="#/me" data-close>Указать вручную</a>
+      <button class="btn primary" id="nr-steam">${ICON.steam}<span>Привязать Steam</span></button></footer>`);
+    $('#nr-steam', m.el).addEventListener('click', () => { m.close(); linkSteam(); });
+  }
+
   function showVariants(list) {
     let page = 0;
     const draw = () => {
