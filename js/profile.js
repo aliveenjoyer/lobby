@@ -1,8 +1,8 @@
 // Профиль игрока — «досье»: сцена с главным героем игрока и его цифрами, ниже стиль игры, путь по рангам, форма,
 // герои, последние матчи и игры на сайте. Цифры считает сервер по открытым данным deadlock-api (server/stats.py);
 // здесь только вид. Картина на сцене — фон главного героя из самой игры (site/assets/herobg, см. tools/fetch_hero_art.py).
-import { meta } from './api.js?v=20261116051905';
-import { esc, ava, heroImg, heroName, badgeImg, badgeName, fmt, plural, clock, dateRu } from './ui.js?v=20261116051905';
+import { meta } from './api.js?v=20261116052211';
+import { esc, ava, heroImg, heroName, badgeImg, badgeName, fmt, plural, clock, dateRu } from './ui.js?v=20261116052211';
 
 const AXES = [['dmg', 'Урон'], ['farm', 'Фарм'], ['obj', 'Объекты'], ['sup', 'Поддержка'], ['tank', 'Стойкость'], ['surv', 'Выживаемость']];
 const MODE = { r: 'рейтинг', u: 'обычный', b: 'Street Brawl', c: 'кастомка', o: '' };
@@ -160,7 +160,7 @@ function rankSec(m, color) {
   const n = m.hist.length - 1;
   const delta = m.hist[n] - m.hist[0];
   return `<section class="pf-sec"><header><h2>История ранга</h2>
-      <span>${n} ${plural(n, 'рейтинговый матч', 'рейтинговых матча', 'рейтинговых матчей')} · <b class="${delta > 0 ? 'up' : delta < 0 ? 'down' : ''}">${signed(delta)}</b> ${plural(Math.abs(delta), 'очко', 'очка', 'очков')} за это время</span></header>
+      <span>${n} ${plural(n, 'рейтинговый матч', 'рейтинговых матча', 'рейтинговых матчей')} · ${delta ? `<b class="${delta > 0 ? 'up' : 'down'}">${signed(delta)}</b> ${plural(Math.abs(delta), 'очко', 'очка', 'очков')} за это время` : 'ранг в итоге тот же'}</span></header>
     <div class="pf-panel pf-hist">${histSvg(m.hist, color)}${histSvg(m.hist, color, true)}</div></section>`;
 }
 
