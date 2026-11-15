@@ -1,12 +1,12 @@
 // Страница лобби. Правило одно: один шаг — одна главная кнопка.
 // Сверху «сцена»: что сейчас происходит и что нажать именно мне (игроку, капитану или ведущему).
 // Под ней комната: места капитанов, список игроков, команды, драфт героев.
-import { API, BASE, call, meta } from './api.js?v=20261116024452';
+import { API, BASE, call, meta } from './api.js?v=20261116030157';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, clock, toast, oops, modal, head, closeModal,
   confirmHold, copy, rankPicker, pickedRank, ICON, morph,
-} from './ui.js?v=20261116024452';
-import { user, login, linkSteam, onUser } from './auth.js?v=20261116024452';
+} from './ui.js?v=20261116030157';
+import { user, login, linkSteam, onUser } from './auth.js?v=20261116030157';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 const TEAM_GEN = { a: 'Янтаря', b: 'Сапфира' };
@@ -146,15 +146,18 @@ export function mountEvent(root, id, opt) {
       ${isHost() ? '<span class="chip">смотрят <span data-viewers></span></span>' : ''}</div></div></div>`;
   }
 
-  function stepsHtml() {
-    const s = st.settings;
-    const d = st.draft;
-    const ph = st.phase;
+  function stepList() {
     const list = [['gather', 'Запись'], ['teams', 'Команды']];
-    if (s.draft !== 'none') list.push(['draft', 'Драфт героев']);
+    if (st.settings.draft !== 'none') list.push(['draft', 'Драфт героев']);
     list.push(['game', 'Игра']);
-    const cur = ph === 'gather' ? 'gather' : ph === 'pick' ? 'teams' : ph === 'teams' ? (d ? 'draft' : 'teams') : 'game';
-    const idx = ph === 'closed' ? list.length : list.findIndex((x) => x[0] === cur);
+    const ph = st.phase;
+    const cur = ph === 'gather' ? 'gather' : ph === 'pick' ? 'teams' : ph === 'teams' ? (st.draft ? 'draft' : 'teams') : 'game';
+    return { list, idx: ph === 'closed' ? list.length : list.findIndex((x) => x[0] === cur) };
+  }
+  const stepNo = () => stepList().idx + 1;
+
+  function stepsHtml() {
+    const { list, idx } = stepList();
     return `<ol class="steps">${list.map((x, i) => `<li class="${i === idx ? 'on' : i < idx ? 'done' : ''}"><i>${i < idx ? '✓' : i + 1}</i><span>${x[1]}</span></li>`).join('')}</ol>`;
   }
 
@@ -559,12 +562,14 @@ export function mountEvent(root, id, opt) {
 
   let shown = null;         // что сейчас на сцене: нужно заголовку вкладки
   let stageAt = 0;          // когда на сцене сменился шаг
+  let stageSeq = 0;         // сколько раз сменился: по чётности меняется класс, и заголовок шага появляется с движением
   function stageHtml() {
     const g = stage();
-    if (!shown || shown.title !== g.title) stageAt = Date.now();
+    if (!shown || shown.title !== g.title) { stageAt = Date.now(); stageSeq += 1; }
     shown = g;
     const btns = g.btns.join('') + g.quiet.join('');
-    return `<section class="stage ${g.tone} ${g.now ? 'now' : ''}">${stepsHtml()}
+    const num = st.phase === 'closed' || g.timer ? '' : `<span class="stnum" aria-hidden="true">${stepNo()}</span>`;
+    return `<section class="stage ${g.tone} ${g.now ? 'now' : ''} ${stageSeq % 2 ? 'swa' : 'swb'}">${num}${stepsHtml()}
       <div class="stbody"><div class="sthead"><div><h2 class="sttitle">${esc(g.title)}</h2>${g.text ? `<p class="sttext">${g.text}</p>` : ''}</div>
         ${g.timer ? `<span class="stclock mono" data-until="${g.timer}"></span>` : ''}</div>
         ${g.below}${btns ? `<div class="stbtns">${btns}</div>` : ''}</div>
@@ -579,8 +584,10 @@ export function mountEvent(root, id, opt) {
     if (c.live) tags.push('<span class="tag live">LIVE</span>');
     if (o.cap) tags.push(`<span class="tag cap ${o.cap === true ? '' : o.cap}">капитан</span>`);
     if (roleOf(uid) && !o.team) tags.push(`<span class="tag">${ROLE[roleOf(uid)].toLowerCase()}</span>`);
-    if (c.bot) tags.push('<span class="tag">тест</span>');
-    else if (c.guest) tags.push('<span class="tag">гость</span>');
+    if (!o.team) {                                            // в узкой колонке команды пометки съедали бы имя
+      if (c.bot) tags.push('<span class="tag">тест</span>');
+      else if (c.guest) tags.push('<span class="tag">гость</span>');
+    }
     if (!opt.obs) {
       const fl = c.flags || [];
       if (isHost() && fl.includes('few')) tags.push('<span class="tag">мало матчей</span>');
@@ -651,7 +658,7 @@ export function mountEvent(root, id, opt) {
       }
       return slot(u, { pool: true, cap: capOf(u), extra });
     }).join('');
-    return `<section class="card plist people"><header><h2>Игроки</h2><span class="dim num">записались ${st.queue.length} · готовы ${nReady} · нужно ${cap()}</span></header>
+    return `<section class="card plist people ${voting ? 'voting' : ''}"><header><h2>Игроки</h2><span class="dim num">записались ${st.queue.length} · готовы ${nReady} · нужно ${cap()}</span></header>
       ${rows ? `<div class="pgrid">${rows}</div>` : '<div class="empty">Пока никто не записался</div>'}</section>`;
   }
 

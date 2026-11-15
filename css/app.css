@@ -502,9 +502,146 @@ body.obs main { padding: 16px; }
 .obsbox .obst { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; padding: 10px 14px; border-radius: 12px;
   background: rgba(10, 10, 10, .86); border: 1px solid var(--line); font-weight: 600; }
 
+/* ---------- лёгкий вид: свет двух команд вместо линий и рамок (16.11) */
+/* Блок стоит после основных правил и до правил для телефона: он переопределяет рамки и фоны, раскладку не трогает. */
+:root { --line: rgba(255, 255, 255, .06); --line2: rgba(255, 255, 255, .12); --glass: rgba(255, 255, 255, .04); --glass2: rgba(255, 255, 255, .075); }
+body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(1100px 640px at -4% -12%, rgba(212, 134, 11, .2), transparent 64%),
+    radial-gradient(1100px 640px at 104% -12%, rgba(77, 117, 195, .25), transparent 64%); }
+body.obs::before { display: none; }
+.top { border-bottom: 0; background: rgba(10, 10, 10, .55); }
+.foot { border-top: 0; }
+.me { border: 0; background: var(--glass2); }
+.card { background: var(--glass); border-radius: 16px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035); }
+.card > header { padding: 16px 18px 0; }
+.card > .body { padding: 14px 18px 18px; }
+
+/* кнопки, чипы, пометки: заливка вместо обводки */
+.btn { border-color: transparent; background: rgba(255, 255, 255, .085); }
+.btn:hover { border-color: transparent; background: rgba(255, 255, 255, .14); }
+.btn.primary.xl { box-shadow: 0 10px 30px rgba(255, 255, 255, .13); }
+.btn.ghost:hover { background: rgba(255, 255, 255, .08); }
+.btn.amber { border-color: rgba(212, 134, 11, .5); background: rgba(212, 134, 11, .13); }
+.btn.amber:hover { border-color: var(--amber); background: rgba(212, 134, 11, .22); box-shadow: 0 0 26px rgba(212, 134, 11, .24); }
+.btn.sapph { border-color: rgba(77, 117, 195, .6); background: rgba(77, 117, 195, .16); }
+.btn.sapph:hover { border-color: var(--sapph); background: rgba(77, 117, 195, .26); box-shadow: 0 0 26px rgba(77, 117, 195, .3); }
+.btn.ok { border-color: transparent; background: rgba(92, 201, 122, .14); }
+.btn.danger:hover { background: rgba(224, 87, 79, .14); }
+.input, select.input, textarea.input { background-color: rgba(0, 0, 0, .28); }
+.chip { border: 0; background: var(--glass2); }
+.chip.live { background: rgba(255, 75, 75, .15); }
+.chip.ok { background: rgba(92, 201, 122, .13); }
+.chip.warn { background: rgba(212, 134, 11, .16); }
+.tag { border: 0; padding: 2px 7px; background: var(--glass2); }
+.tag.cap { background: rgba(255, 255, 255, .13); }
+.tag.cap.a { background: rgba(212, 134, 11, .18); }
+.tag.cap.b { background: rgba(77, 117, 195, .24); }
+.tag.live { background: rgba(255, 75, 75, .16); }
+.state { border: 0; background: var(--glass2); }
+.state.ok { background: rgba(92, 201, 122, .13); }
+.state.a { background: rgba(212, 134, 11, .17); }
+.state.b { background: rgba(77, 117, 195, .22); }
+.mini { border-color: transparent; background: rgba(255, 255, 255, .1); }
+.mini:hover { border-color: transparent; background: rgba(255, 255, 255, .17); }
+.mini.on:hover { background: #e6e6e6; }
+
+/* главная */
+.hello h1 { font-size: clamp(28px, 5vw, 42px); letter-spacing: -.03em; }
+.hello h1::after { content: ""; display: block; width: 76px; height: 5px; margin-top: 18px; border-radius: 3px; transform: skewX(-22deg); transform-origin: left;
+  background: linear-gradient(90deg, var(--amber) 48%, var(--sapph) 52%); }
+.evrow:hover { background: var(--glass2); }
+.flow li { background: var(--glass); border-radius: 16px; }
+.flow li::before { border: 0; background: var(--glass2); }
+.kv div { border: 0; background: var(--glass); }
+.links a { border: 0; background: var(--glass2); }
+.links a:hover { background: rgba(255, 255, 255, .12); }
+
+/* сцена */
+.stage { position: relative; border-color: var(--line2); border-radius: 22px; background: linear-gradient(180deg, rgba(255, 255, 255, .075), rgba(255, 255, 255, .025));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .07), 0 24px 60px rgba(0, 0, 0, .32); }
+/* кромка главной карточки — двумя цветами команд */
+.stage::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; padding: 1px; pointer-events: none;
+  background: linear-gradient(100deg, rgba(212, 134, 11, .75), rgba(255, 255, 255, .1) 38%, rgba(255, 255, 255, .1) 62%, rgba(77, 117, 195, .85));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+.stage.now::after { display: none; }
+/* крупная цифра шага: видно, на каком из четырёх шагов игра */
+.stnum { position: absolute; right: 26px; top: 2px; font: 800 176px/1 var(--mono); letter-spacing: -.06em; color: transparent; pointer-events: none; user-select: none;
+  background: linear-gradient(115deg, rgba(251, 220, 160, .16), rgba(189, 203, 255, .16)); -webkit-background-clip: text; background-clip: text; }
+.stbody, .merow, .tools { position: relative; }
+.stage.a::before, .stage.b::before { display: none; }
+.stage.a { background: radial-gradient(560px 230px at 0 0, rgba(212, 134, 11, .22), transparent 70%), linear-gradient(180deg, rgba(255, 255, 255, .075), rgba(255, 255, 255, .025)); }
+.stage.b { background: radial-gradient(560px 230px at 0 0, rgba(77, 117, 195, .28), transparent 70%), linear-gradient(180deg, rgba(255, 255, 255, .075), rgba(255, 255, 255, .025)); }
+.stage.now { border-color: rgba(255, 255, 255, .9); }
+.steps { border-bottom: 0; padding-bottom: 0; }
+.steps li + li::before { width: 18px; margin: 0; background: transparent; }
+.steps i { border: 0; background: var(--glass2); color: var(--dim); }
+.steps li.done i { background: transparent; color: var(--ok); }
+.steps li.on i { background: #fff; color: #000; }
+.sttitle { font-size: 34px; }
+.swa .sthead { animation: stin .4s cubic-bezier(.2, .7, .2, 1); }
+.swb .sthead { animation: stin2 .4s cubic-bezier(.2, .7, .2, 1); }
+@keyframes stin { from { opacity: 0; transform: translateY(8px); } }
+@keyframes stin2 { from { opacity: 0; transform: translateY(8px); } }
+.merow, .tools { border-top: 0; background: rgba(0, 0, 0, .2); }
+.merow + .tools { padding-top: 0; }
+.codebox { border: 0; background: rgba(0, 0, 0, .3); }
+.note, .sumbar { border: 0; background: var(--glass); }
+
+/* капитаны и «VS» двумя цветами команд */
+.capslot { border-color: var(--line); border-radius: 16px; }
+.capslot.a { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035); background: radial-gradient(360px 150px at 0 0, rgba(212, 134, 11, .15), transparent 70%), var(--glass); }
+.capslot.b { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035); background: radial-gradient(360px 150px at 100% 0, rgba(77, 117, 195, .19), transparent 70%), var(--glass); }
+.capsrow .vs, .dhead span { font: italic 800 22px/1 var(--font); letter-spacing: -.02em; color: transparent; -webkit-background-clip: text; background-clip: text;
+  background-image: linear-gradient(100deg, var(--amber-hi) 25%, var(--sapph-hi) 75%); }
+/* косой штрих цвета команды перед её названием */
+.tn::before, .capslot h3::before { content: ""; display: inline-block; width: 4px; height: 13px; margin-right: 8px; border-radius: 2px; vertical-align: -1px;
+  background: currentColor; transform: skewX(-16deg); }
+
+/* списки: строки без разделителей */
+.plist > header, .poolcol > header, .team > header, .staff > header, .heroes > header { border-bottom: 0; padding: 15px 18px 6px; }
+.team.a > header, .team.b > header, .heroes.a > header, .heroes.b > header { box-shadow: none; }
+.slots { padding: 2px 6px 6px; gap: 2px; }
+.pgrid { margin: 0; padding: 2px 6px 6px; gap: 2px; }
+.slot { border-bottom: 0; border-radius: 11px; }
+.pgrid > .slot { border: 0; }
+.slot:hover { background: rgba(255, 255, 255, .06); }
+.slot.free, .slot.free:hover { background: rgba(255, 255, 255, .022); }
+.slot.free.take:hover { background: rgba(255, 255, 255, .07); }
+.slot.me-row { background: rgba(255, 255, 255, .055); }
+.slot.me-row::before { left: 3px; top: 13px; bottom: 13px; }
+.staffadd { border-top: 0; padding-top: 6px; }
+.team.turn.a { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber), 0 0 34px rgba(212, 134, 11, .18); }
+.team.turn.b { border-color: var(--sapph); box-shadow: 0 0 0 1px var(--sapph), 0 0 34px rgba(77, 117, 195, .22); }
+
+/* драфт */
+.dstrip i { border: 0; background: var(--glass2); }
+.dslot { border: 0; background: var(--glass2); }
+.dside.a .dslot, .dside.b .dslot { box-shadow: none; }
+.dslot.cur { outline: 2px solid #fff; outline-offset: -2px; }
+.dban { border: 0; background: var(--glass2); }
+.dban.cur { border: 0; outline: 2px solid #fff; outline-offset: -2px; }
+.dban.full { border: 0; outline: 1px solid rgba(224, 87, 79, .7); outline-offset: -1px; }
+.dmid { border: 0; border-radius: 16px; background: rgba(0, 0, 0, .3); }
+.dres { border: 0; background: var(--glass2); }
+.dres.on { background: rgba(255, 180, 77, .15); }
+.hcard, .tcard { border: 0; background-color: var(--glass2); }
+.hcard:hover, .tcard:hover { outline: 1px solid rgba(255, 255, 255, .55); outline-offset: -1px; }
+.hcard.idle:hover, .tcard.idle:hover { outline: 0; }
+.hcard.sel, .hcard.sel:hover, .tcard.mine, .tcard.mine:hover { outline: 2px solid #fff; outline-offset: -2px; }
+
+/* длинные английские имена героев — в две строки, а не с обрезкой */
+.hcard span { white-space: normal; line-height: 1.15; text-wrap: balance; }
+.tcard .hn { white-space: normal; line-height: 1.15; text-wrap: balance; }
+/* во время голосования в строке игрока главное — имя и кнопка «Голос» */
+.people.voting .tag:not(.cap) { display: none; }
+
+/* окна */
+.sheet { background: #151517; }
+
 /* ---------- телефон */
 @media (max-width: 1400px) { .poolcol .slot .mains { display: none; } }
 @media (max-width: 1100px) { .lobby { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 900px) { .stnum { display: none; } }
 @media (max-width: 980px) {
   .arena.three { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "a b" "p p"; }
   .flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }

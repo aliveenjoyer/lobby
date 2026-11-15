@@ -1,12 +1,12 @@
 // Лобби: маршруты, шапка, главная, профиль, страница ведущего.
-import { call, meta, loadMeta, session } from './api.js?v=20261116024452';
+import { call, meta, loadMeta, session } from './api.js?v=20261116030157';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, toast, oops, modal, head, confirmHold,
   ICON, dateRu,
-} from './ui.js?v=20261116024452';
-import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116024452';
-import { mountEvent } from './event.js?v=20261116024452';
-import { profileBlocks } from './profile.js?v=20261116024452';
+} from './ui.js?v=20261116030157';
+import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116030157';
+import { mountEvent } from './event.js?v=20261116030157';
+import { profileBlocks } from './profile.js?v=20261116030157';
 
 const view = $('#view');
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
@@ -71,7 +71,7 @@ async function home(fresh) {
       ${e.host.live ? '<span class="chip live">LIVE</span>' : ''}<span class="btn sm primary">Зайти</span></a>`).join('');
     const prof = me ? `<section class="sec"><h2>Твой профиль</h2><a class="card evrow" href="#/me">${ava(me)}
       <span class="t"><b>${esc(me.name)}</b><span>${me.badge ? esc(badgeName(me.badge)) : me.steam ? 'в игре ранга пока нет' : 'без ранга'}${me.pts != null ? ' · сила ' + fmt(me.pts) : ''}${me.steam ? '' : ' · Steam не привязан'}</span></span>
-      <span class="row" style="gap:3px;flex-wrap:nowrap">${(me.mains || []).map((h) => heroImg(h)).join('')}</span>${badgeImg(me.badge)}<span class="btn sm">Открыть</span></a></section>` : '';
+      ${badgeImg(me.badge)}<span class="btn sm">Открыть</span></a></section>` : '';
     view.innerHTML = `<section class="hello"><h1>Кастомки Deadlock со зрителями</h1>
       <p>Ведущий создаёт лобби и кидает ссылку в чат. Зрители записываются, два капитана набирают команды, потом драфт героев и код для входа в игру.</p>
       ${btn.length ? `<div class="row">${btn.join('')}</div>` : ''}</section>
@@ -79,7 +79,7 @@ async function home(fresh) {
       <section class="sec"><h2>Как проходит игра</h2><ol class="flow">
         <li><b>Запись</b><span>Зрители заходят по ссылке и жмут «Записаться». Ранг и герои подтягиваются из Steam.</span></li>
         <li><b>Капитаны</b><span>Двое жмут «Стать капитаном» — или ведущий запускает голосование, и капитанов выбирают игроки.</span></li>
-        <li><b>Команды и драфт</b><span>Капитаны по очереди берут игроков. Потом баны и выбор героев по одному.</span></li>
+        <li><b>Команды и драфт</b><span>Капитаны по очереди берут игроков, потом банят и выбирают героев команде. Кто на ком играет, команда решает сама.</span></li>
         <li><b>Игра</b><span>Сайт создаёт лобби в Deadlock и показывает код игрокам команд. После матча — итог и следующая игра.</span></li>
       </ol></section>`;
   };
@@ -116,7 +116,6 @@ function mePage() {
     ? `В игре у тебя пока нет ранга: идёт калибровка${left > 0 ? `, ${plural(left, 'осталась', 'остались', 'осталось')} ${left} ${plural(left, 'игра', 'игры', 'игр')}` : ''}.`
     : 'В игре у тебя пока нет ранга: он появляется после рейтинговых матчей.'}
     Сайт берёт ранг только из игры. Когда он там появится, нажми «Обновить статистику». До тех пор ранг тебе может поставить ведущий лобби.</div>`;
-  const heroSel = (i) => `<select class="input" data-main="${i}"><option value="0">Не выбран</option>${meta.heroes.map((h) => `<option value="${h.id}" ${me.mains[i] === h.id ? 'selected' : ''}>${esc(h.name)}</option>`).join('')}</select>`;
   view.innerHTML = `<div class="phead">${ava(me, 'l')}<div class="t"><h1>${esc(me.name)}</h1>
       <div class="row" style="margin-top:6px"><a class="chip" href="https://twitch.tv/${esc(me.login)}" target="_blank" rel="noopener">twitch.tv/${esc(me.login)}</a>
         ${me.steam ? `<a class="chip" href="https://statlocker.gg/profile/${me.steam}" target="_blank" rel="noopener">Statlocker</a><span class="chip ok">Steam привязан</span>` : ''}</div></div>
@@ -133,10 +132,6 @@ function mePage() {
           <div class="row"><button class="btn primary" data-p="steam">${ICON.steam}<span>Привязать Steam</span></button></div>`}
       </div></section>
       <div class="col">
-        <section class="card"><header><h2>Мейны</h2><span class="dim" style="font-size:13px">${me.own_mains ? 'выбраны вручную' : 'по числу матчей'}</span></header><div class="body" style="display:grid;gap:10px">
-          ${heroSel(0)}${heroSel(1)}${heroSel(2)}
-          <div class="row"><button class="btn" data-p="mains">Сохранить мейнов</button>${me.own_mains ? '<button class="btn ghost" data-p="mains_auto">Вернуть по числу матчей</button>' : ''}</div>
-        </div></section>
         <section class="card"><header><h2>Игры на сайте</h2></header><div class="body"><div class="kv">
           <div><b>${me.games}</b><span>сыграно</span></div><div><b>${me.wins}</b><span>побед</span></div>
           <div><b>${me.adj > 0 ? '+' : ''}${fmt(me.adj)}</b><span>поправка силы</span></div></div></div></section>
@@ -172,12 +167,6 @@ function mePage() {
         <footer><button class="btn" data-close>Отмена</button><button class="btn danger" id="un-go">Отвязать Steam</button></footer>`);
       $('#un-go', m.el).addEventListener('click', async () => { m.close(); await save('/steam/unlink', {}, 'Steam отвязан'); });
     }
-    if (a === 'mains') {
-      const ids = Array.from(view.querySelectorAll('[data-main]')).map((s) => +s.value).filter(Boolean);
-      if (new Set(ids).size !== ids.length) { toast('Мейны должны быть разными героями', true); return; }
-      await save('/me', { mains: ids.length ? ids : null }, 'Мейны сохранены');
-    }
-    if (a === 'mains_auto') await save('/me', { mains: null }, 'Мейны снова считаются по матчам');
     if (a === 'host_add') {
       const l = $('#adm-login').value.trim().replace(/^@/, '');
       if (!l) { toast('Впиши логин Twitch', true); return; }
