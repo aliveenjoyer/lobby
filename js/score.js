@@ -1,10 +1,22 @@
 // Таблица матча: живая, пока игра идёт, и итоговая после неё.
 // Одна и та же на странице лобби, в слое для OBS и в прошедших играх на странице ведущего.
-import { esc, heroImg, heroName, fmt, plural, clock, dateRu, modal, head } from './ui.js?v=20261116043248';
+import { meta } from './api.js?v=20261116043646';
+import { esc, heroImg, heroName, fmt, plural, clock, dateRu, modal, head } from './ui.js?v=20261116043646';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 // колонки с числами; opt — на телефоне прячутся
 const COLS = [['nw', 'Души'], ['dmg', 'Урон'], ['obj', 'Объекты', 'opt'], ['heal', 'Лечение', 'opt']];
+
+const SLOT = { w: 'Оружие', v: 'Живучесть', s: 'Дух' };
+const ORDER = { w: 0, v: 1, s: 2 };
+
+// Предметы игрока плитками: цвет плитки — категория, как в игре. Порядок: оружие, живучесть, дух; внутри — как куплены.
+function itemsHtml(ids) {
+  const list = (ids || []).map((id, n) => ({ x: meta.itemById.get(id), n })).filter((o) => o.x);
+  if (!list.length) return '';
+  list.sort((a, b) => ORDER[a.x.s] - ORDER[b.x.s] || a.n - b.n);
+  return list.map(({ x }) => `<span class="it ${x.s}" title="${esc(x.n)} · ${SLOT[x.s]}">${x.i ? `<img src="${esc(x.i)}" alt="${esc(x.n)}" loading="lazy">` : ''}</span>`).join('');
+}
 
 // t — таблица с сервера: { rows, clock, paused, at, live, win }
 // o: { me: uid зрителя, card: (uid) => карточка игрока лобби | null, win: 'a' | 'b' | null — итог, если он уже отмечен }
@@ -15,6 +27,7 @@ export function scoreHtml(t, o) {
   const max = {};
   for (const [k] of COLS) max[k] = Math.max(1, ...rows.map((r) => r[k] || 0));
   const win = o.win || (t.live ? null : t.win);
+  const withItems = rows.some((r) => r.items && r.items.length && r.items.some((id) => meta.itemById.has(id)));
 
   const row = (r) => {
     const c = r.uid && o.card ? o.card(r.uid) : null;
@@ -25,7 +38,7 @@ export function scoreHtml(t, o) {
     const cells = COLS.map(([k, , cls]) => `<span class="sc ${cls || ''} ${r[k] && r[k] === max[k] ? 'best' : ''}"><b>${fmt(r[k] || 0)}</b><i style="width:${Math.round(100 * (r[k] || 0) / max[k])}%"></i></span>`).join('');
     return `<div class="srow ${r.team} ${r.dead && t.live ? 'dead' : ''} ${r.uid && r.uid === o.me ? 'mine' : ''}"${r.uid ? ` data-uid="${esc(r.uid)}"` : ''}>
       <span class="sp">${heroImg(r.hero, 'm')}<span class="who"><b>${esc(name)}${r.mvp ? `<span class="tag mvp m${r.mvp}" title="${r.mvp === 1 ? 'Лучший игрок матча — так отметила сама игра' : `${r.mvp}-е место среди лучших игроков матча`}">${r.mvp === 1 ? 'MVP' : 'топ-' + r.mvp}</span>` : ''}</b><span class="sub">${sub}</span></span></span>
-      <span class="kda"><b>${r.k || 0}</b><em>/</em><b class="dth">${r.d || 0}</b><em>/</em><b>${r.a || 0}</b></span>${cells}</div>`;
+      <span class="kda"><b>${r.k || 0}</b><em>/</em><b class="dth">${r.d || 0}</b><em>/</em><b>${r.a || 0}</b></span>${cells}${withItems ? `<span class="its">${itemsHtml(r.items)}</span>` : ''}</div>`;
   };
 
   const team = (k) => {
@@ -45,8 +58,8 @@ export function scoreHtml(t, o) {
     stamp = `<span class="chip live" title="Таблица обновляется сама и отстаёт от игры примерно на 20 секунд">LIVE</span>${time}`;
   } else if (t.clock) stamp = `<span class="dim">матч шёл <span class="mono">${clock(t.clock)}</span></span>`;
 
-  return `<section class="card score ${t.live ? 'live' : ''}"><header><h2>Таблица матча</h2>${stamp}</header>
-    <div class="shead"><span></span><span>K / D / A</span>${COLS.map(([, title, cls]) => `<span class="${cls || ''}">${title}</span>`).join('')}</div>
+  return `<section class="card score ${t.live ? 'live' : ''} ${withItems ? 'items' : ''}"><header><h2>Таблица матча</h2>${stamp}</header>
+    <div class="shead"><span></span><span>K / D / A</span>${COLS.map(([, title, cls]) => `<span class="${cls || ''}">${title}</span>`).join('')}${withItems ? '<span class="hits">Предметы</span>' : ''}</div>
     ${team('a')}${team('b')}</section>`;
 }
 

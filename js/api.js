@@ -35,11 +35,12 @@ export async function call(path, body, method) {
   return d;
 }
 
-export const meta = { heroes: [], byId: new Map(), ranks: [], regions: {}, modes: {}, drafts: {}, defaults: {}, dev: false, ready: false };
+export const meta = { heroes: [], byId: new Map(), items: [], itemById: new Map(), ranks: [], regions: {}, modes: {}, drafts: {}, defaults: {}, dev: false, ready: false };
 
 export async function loadMeta() {
   const m = await call('/meta');
   Object.assign(meta, m, { ready: true });
   meta.byId = new Map(m.heroes.map((h) => [h.id, h]));
+  meta.itemById = new Map((m.items || []).map((x) => [x.id, x]));        // предметы из магазина игры: для таблицы матча
   return meta;
 }

@@ -1,13 +1,13 @@
 // Страница лобби. Правило одно: один шаг — одна главная кнопка.
 // Сверху «сцена»: что сейчас происходит и что нажать именно мне (игроку, капитану или ведущему).
 // Под ней комната: места капитанов, список игроков, команды, драфт героев.
-import { API, BASE, call, meta } from './api.js?v=20261116043248';
+import { API, BASE, call, meta } from './api.js?v=20261116043646';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, clock, toast, oops, modal, head, closeModal,
   confirmHold, copy, rankPicker, pickedRank, ICON, morph,
-} from './ui.js?v=20261116043248';
-import { user, login, linkSteam, onUser } from './auth.js?v=20261116043248';
-import { scoreHtml, gameRow, openGame } from './score.js?v=20261116043248';
+} from './ui.js?v=20261116043646';
+import { user, login, linkSteam, onUser } from './auth.js?v=20261116043646';
+import { scoreHtml, gameRow, openGame } from './score.js?v=20261116043646';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 const TEAM_GEN = { a: 'Янтаря', b: 'Сапфира' };
@@ -756,9 +756,9 @@ export function mountEvent(root, id, opt) {
     const ph = st.phase;
     if (!st.teams) return caps() ? (ph === 'closed' ? '' : capsBlock() + playersBlock()) : seatsBlock();
     const d = st.draft;
-    // во время драфта составы команд видны сразу, над доской (и подробно — под ней): люди должны видеть, кто с кем
-    // (просьба владельца на живой игре 16.11: «нажал драфт героев, и всё, нет списка команд»)
-    if (ph === 'teams' && d && !d.done) return `${rosterStrip()}${draftHtml()}<div class="arena two">${teamCol('a')}${teamCol('b')}</div>`;
+    // во время драфта составы команд видны сразу, над доской: люди должны видеть, кто с кем (просьба владельца на живой
+    // игре 16.11: «нажал драфт героев, и всё, нет списка команд»; второй список под доской он попросил убрать)
+    if (ph === 'teams' && d && !d.done) return `${rosterStrip()}${draftHtml()}`;
     const bar = st.sums && !opt.obs && !caps() ? `<div class="sumbar"><span>Баланс команд: <b>${esc(st.sums.words)}</b></span>
       ${st.dirty ? '<span class="chip warn">состав изменился</span>' : `<span class="num">разница в силе ${fmt(st.sums.diff)}</span>`}</div>` : '';
     const mid = caps() && (ph === 'pick' || (st.queue.length && ['teams', 'lobby'].includes(ph)));
