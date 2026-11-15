@@ -1,7 +1,7 @@
 // Таблица матча: живая, пока игра идёт, и итоговая после неё.
 // Одна и та же на странице лобби, в слое для OBS и в прошедших играх на странице ведущего.
-import { meta } from './api.js?v=20261116044426';
-import { esc, heroImg, heroName, fmt, plural, clock, dateRu, modal, head } from './ui.js?v=20261116044426';
+import { meta, call } from './api.js?v=20261116045703';
+import { esc, heroImg, heroName, fmt, plural, clock, dateRu, modal, head } from './ui.js?v=20261116045703';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 // колонки с числами; opt — на телефоне прячутся
@@ -9,14 +9,111 @@ const COLS = [['nw', 'Души'], ['dmg', 'Урон'], ['obj', 'Объекты',
 
 const SLOT = { w: 'Оружие', v: 'Живучесть', s: 'Дух' };
 const ORDER = { w: 0, v: 1, s: 2 };
+const TIER = ['', 'I', 'II', 'III', 'IV', 'V'];
 
-// Предметы игрока плитками: цвет плитки — категория, как в игре. Порядок: оружие, живучесть, дух; внутри — как куплены.
+// Картинка предмета: как в магазине игры; у старых предметов её нет — тогда белый значок на плитке цвета категории.
+const itemPic = (x) => (x.i ? `<img src="${esc(x.i)}" alt="" loading="lazy">` : x.g ? `<img class="glyph" src="${esc(x.g)}" alt="" loading="lazy">` : '');
+
+// Предметы игрока плитками. Порядок: оружие, живучесть, дух; внутри — как куплены. Наведение на плитку открывает карточку.
 function itemsHtml(ids) {
   const list = (ids || []).map((id, n) => ({ x: meta.itemById.get(id), n })).filter((o) => o.x);
   if (!list.length) return '';
   list.sort((a, b) => ORDER[a.x.s] - ORDER[b.x.s] || a.n - b.n);
-  // обычно значок — белый рисунок на прозрачном фоне; у немногих предметов есть только цветная картинка из магазина
-  return list.map(({ x }) => `<span class="it ${x.s} ${x.i && x.i.includes('/images/items/') ? 'full' : ''}" title="${esc(x.n)} · ${SLOT[x.s]}">${x.i ? `<img src="${esc(x.i)}" alt="${esc(x.n)}" loading="lazy">` : ''}</span>`).join('');
+  return list.map(({ x }) => `<span class="it ${x.s} ${x.i ? 'art' : ''}" data-item="${x.id}" tabindex="0" role="img" aria-label="${esc(x.n)}">${itemPic(x)}</span>`).join('');
+}
+
+// ---- карточка предмета: что это и что он даёт. Описания большие, поэтому берутся одним запросом при первом наведении.
+let cards = null;
+let loading = null;
+function loadCards() {
+  if (!loading) {
+    loading = call('/items').then((d) => { cards = new Map((d.items || []).map((x) => [x.id, x])); })
+      .catch(() => { loading = null; });
+  }
+  return loading;
+}
+
+function cardHtml(x) {
+  let cdShown = false;
+  const secs = (x.d || []).map((sec) => {
+    const rows = sec.p || [];
+    let head = '';
+    if (sec.k !== 'i') {
+      const cd = x.cd && !cdShown ? `<span>перезарядка ${esc(x.cd)}</span>` : '';
+      cdShown = cdShown || !!cd;
+      head = `<div class="th"><b>${sec.k === 'a' ? 'Активно' : 'Пассивно'}</b>${cd}</div>`;
+    }
+    const big = rows.filter((r) => r[2] === 2).map((r) => `<div class="tbig"><b>${esc(r[0])}</b><span>${esc(r[1])}</span></div>`).join('');
+    const rest = rows.filter((r) => r[2] !== 2).map((r) => `<div class="trow ${r[2] ? 'el' : ''}"><b>${esc(r[0])}</b><span>${esc(r[1])}</span></div>`).join('');
+    return `<section class="ts">${head}${sec.x ? `<p>${esc(sec.x).replace(/\n/g, '<br>')}</p>` : ''}${big ? `<div class="tbigs">${big}</div>` : ''}${rest}</section>`;
+  }).join('');
+  const from = (x.f || []).map((id) => ((cards && cards.get(id)) || meta.itemById.get(id) || {}).n).filter(Boolean);
+  const about = [SLOT[x.s], `уровень ${TIER[x.t] || x.t}`];
+  if (x.c) about.push(`${fmt(x.c)} душ`);
+  if (x.a) about.push('активный');
+  return `<header class="${x.s}"><span class="it ${x.s} ${x.i ? 'art' : ''} big">${itemPic(x)}</span>
+    <div><b>${esc(x.n)}</b>${x.r ? `<span class="tr">${esc(x.r)}</span>` : ''}<span class="tm">${about.join(' · ')}</span></div></header>
+    ${secs}${from.length ? `<footer>Собирается из: ${from.map(esc).join(', ')}</footer>` : ''}`;
+}
+
+let tip = null;
+let tipFor = null;
+function placeTip(el) {
+  const r = el.getBoundingClientRect();
+  const w = tip.offsetWidth;
+  const h = tip.offsetHeight;
+  const x = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), window.innerWidth - w - 8);
+  let y = r.bottom + 8;
+  if (y + h > window.innerHeight - 8) y = r.top - 8 - h > 8 ? r.top - 8 - h : Math.max(8, window.innerHeight - h - 8);
+  tip.style.left = `${Math.round(x)}px`;
+  tip.style.top = `${Math.round(y)}px`;
+}
+function hideTip() {
+  tipFor = null;
+  if (tip) tip.classList.remove('on');
+}
+function showTip(el) {
+  const id = +el.dataset.item;
+  const lite = meta.itemById.get(id);
+  if (!lite) return;
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.className = 'itip';
+    tip.setAttribute('role', 'tooltip');
+    document.body.appendChild(tip);
+  }
+  tipFor = el;
+  const draw = () => {
+    if (tipFor !== el) return;
+    tip.innerHTML = cardHtml((cards && cards.get(id)) || lite);
+    placeTip(el);
+  };
+  draw();
+  tip.classList.add('on');
+  if (!cards) loadCards().then(draw);
+}
+const itemAt = (e) => (e.target && e.target.closest ? e.target.closest('.it[data-item]') : null);
+if (typeof document !== 'undefined' && !window.lobbyItemTips) {
+  window.lobbyItemTips = true;
+  document.addEventListener('mouseover', (e) => {
+    const el = itemAt(e);
+    if (el) { if (el !== tipFor) showTip(el); } else if (tipFor) hideTip();
+  });
+  document.addEventListener('focusin', (e) => { const el = itemAt(e); if (el) showTip(el); });
+  document.addEventListener('focusout', (e) => { if (itemAt(e)) hideTip(); });
+  // нажатие (телефон): карточка открывается и закрывается; строка игрока под плиткой при этом не срабатывает
+  document.addEventListener('click', (e) => {
+    const el = itemAt(e);
+    if (el) {
+      e.stopPropagation();
+      if (tipFor === el && e.pointerType !== 'mouse' && e.detail !== 0 && tip.dataset.tap === String(el.dataset.item)) { tip.dataset.tap = ''; hideTip(); }
+      else { showTip(el); tip.dataset.tap = String(el.dataset.item); }
+    } else if (tipFor) hideTip();
+  }, true);
+  window.addEventListener('scroll', hideTip, true);
+  window.addEventListener('resize', hideTip);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideTip(); });
+  setInterval(() => { if (tipFor && !document.contains(tipFor)) hideTip(); }, 700);      // таблицу перерисовали под курсором
 }
 
 // t — таблица с сервера: { rows, clock, paused, at, live, win }
