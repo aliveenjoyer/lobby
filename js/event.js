@@ -1,16 +1,17 @@
 // Страница лобби. Правило одно: один шаг — одна главная кнопка.
 // Сверху «сцена»: что сейчас происходит и что нажать именно мне (игроку, капитану или ведущему).
 // Под ней комната: места капитанов, список игроков, команды, драфт героев.
-import { API, BASE, call, meta } from './api.js?v=20261116022036';
+import { API, BASE, call, meta } from './api.js?v=20261116023039';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, clock, toast, oops, modal, head, closeModal,
   confirmHold, copy, rankPicker, pickedRank, ICON, morph,
-} from './ui.js?v=20261116022036';
-import { user, login, linkSteam, onUser } from './auth.js?v=20261116022036';
+} from './ui.js?v=20261116023039';
+import { user, login, linkSteam, onUser } from './auth.js?v=20261116023039';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 const TEAM_GEN = { a: 'Янтаря', b: 'Сапфира' };
 const NO_CAPS = { a: null, b: null };
+const ROLE = { owner: 'Организатор', host: 'Ведущий', caster: 'Кастер' };       // администрация лобби
 
 const btn = (act, label, cls, extra) => `<button class="btn ${cls || ''}" data-act="${act}"${extra || ''}>${label}</button>`;
 const P = (act, label, extra) => btn(act, label, 'primary xl', extra);      // главная кнопка шага
@@ -35,7 +36,9 @@ export function mountEvent(root, id, opt) {
   const pageTitle = document.title;
 
   const meId = () => (user.me ? user.me.id : null);
-  const isHost = () => !!(pv && pv.host);
+  const isHost = () => !!(pv && pv.host);                   // ведёт лобби: организатор или назначенный им ведущий
+  const isOwner = () => !!(pv && pv.owner);                 // организатор: назначает администрацию и закрывает лобби
+  const roleOf = (uid) => (!uid ? null : uid === st.host.uid ? 'owner' : st.staff[uid] || null);
   const cards = () => (pv && pv.full) || st.cards;
   const card = (uid) => cards()[uid] || { uid, name: '?', badge: 0, pts: null, mains: [], flags: [] };
   const whereOf = (s, uid) => (!s || !uid ? null : s.seats.includes(uid) ? 'seat' : s.queue.includes(uid) ? 'queue' : null);
@@ -77,6 +80,7 @@ export function mountEvent(root, id, opt) {
     const prev = st;
     next.caps = next.caps || NO_CAPS;
     next.voting = next.voting || null;
+    next.staff = next.staff || {};
     st = next;
     skew = next.now - Date.now() / 1000;
     if (!hostInfo && next.host.login) {
@@ -85,7 +89,7 @@ export function mountEvent(root, id, opt) {
     }
     const uid = meId();
     if (!prev || !pv || isHost() || whereOf(prev, uid) !== whereOf(next, uid) || !!prev.lobby !== !!next.lobby
-        || (prev.lobby && next.lobby && prev.lobby.at !== next.lobby.at)) getPrivate();
+        || (prev.lobby && next.lobby && prev.lobby.at !== next.lobby.at) || (uid && prev.staff[uid] !== next.staff[uid])) getPrivate();
     if (!next.draft || next.draft.done) selHero = null;
     if (next.phase !== 'lobby') showCode = false;
     if (prev && prev.voting && !next.voting && next.phase === 'gather' && !opt.obs) {
@@ -200,8 +204,11 @@ export function mountEvent(root, id, opt) {
     const k = teamOf(uid);
     const g = { title: '', text: '', timer: null, btns: [], quiet: [], below: '', tone: '', now: false, uses: [] };
     const blocked = gate();
+    const caster = roleOf(uid) === 'caster' && !w;
     // зритель, который ещё не записан: главная кнопка — записаться (или то, что этому мешает)
     const offerJoin = (text) => {
+      // кастеру главное — код лобби, а не запись; сыграть сам он может кнопкой «Записаться» в строке «Ты»
+      if (caster) { g.text = 'Ты кастер: когда появится лобби в игре, здесь будет код — заходи наблюдателем. Ссылка на слой для OBS — в строке ниже.'; return; }
       if (blocked) { g.text = blocked.text; g.btns = blocked.btns; return; }
       const free = !caps() && st.seats.length < cap() && !st.queue.length && ['gather', 'teams', 'lobby'].includes(ph);
       g.text = text;
@@ -211,8 +218,8 @@ export function mountEvent(root, id, opt) {
 
     if (ph === 'closed') {
       g.title = 'Лобби закрыто';
-      g.text = host ? 'Игры закончены. Новое лобби создаётся одной кнопкой.' : 'Ведущий закончил игры на сегодня.';
-      g.btns = [host ? P('new_lobby', 'Создать новое лобби') : '<a class="btn xl" href="#/">На главную</a>'];
+      g.text = isOwner() ? 'Игры закончены. Новое лобби создаётся одной кнопкой.' : 'Игры на сегодня закончены.';
+      g.btns = [isOwner() ? P('new_lobby', 'Создать новое лобби') : '<a class="btn xl" href="#/">На главную</a>'];
       return g;
     }
 
@@ -242,9 +249,9 @@ export function mountEvent(root, id, opt) {
     if (ph === 'lobby') {
       const lb = st.lobby;
       const bot = lb.mode === 'bot';
-      if (host || w === 'seat') {
+      if (host || w === 'seat' || roleOf(uid)) {              // кастеру код тоже виден: он заходит наблюдателем
         g.title = 'Лобби в игре создано. Заходите';
-        g.text = `Открой Deadlock, зайди в кастомные матчи и введи код.${k ? ` Твоя команда — «${TEAM[k]}».` : ''}`;
+        g.text = `Открой Deadlock, зайди в кастомные матчи и введи код.${k ? ` Твоя команда — «${TEAM[k]}».` : roleOf(uid) === 'caster' ? ' Ты кастер: заходи наблюдателем.' : ''}`;
         g.below = codeBox();
         g.now = !host;
         if (host && bot) {
@@ -402,8 +409,8 @@ export function mountEvent(root, id, opt) {
       return g;
     }
     if (!w) {
-      g.title = 'Запись на игру открыта';
-      if (blocked) { g.title = blocked.title; g.text = blocked.text; g.btns = blocked.btns; return g; }
+      g.title = roleOf(uid) === 'caster' ? 'Ты кастер этого лобби' : 'Запись на игру открыта';
+      if (blocked && roleOf(uid) !== 'caster') { g.title = blocked.title; g.text = blocked.text; g.btns = blocked.btns; return g; }
       offerJoin(`${nPool ? `Уже записались ${nPool}. ` : ''}Запишись игроком — или сразу нажми «Стать капитаном» ниже и набирай свою команду.`);
       return g;
     }
@@ -512,9 +519,12 @@ export function mountEvent(root, id, opt) {
     } else if (!gate() && !['live', 'done'].includes(ph)) {
       b.push(['join', caps() ? 'Записаться' : 'Записаться на игру', 'ok']);
     }
+    const role = roleOf(uid);
+    if (role === 'caster') b.unshift(['copy_obs', 'Слой для OBS']);
     const buttons = b.filter((x) => !used.includes(x[0])).map(([a, t, cl]) => btn(a, t, 'sm ' + (cl || ''))).join('');
     return `<div class="merow"><span class="lbl">Ты</span>${ava(me, 's')}<b>${esc(me.name)}</b>
-      <span class="rk">${badge ? esc(badgeName(badge)) : 'без ранга'}</span><span class="state ${cls}">${state}</span><span class="sp"></span>${buttons}</div>`;
+      <span class="rk">${badge ? esc(badgeName(badge)) : 'без ранга'}</span>${role ? `<span class="state">${ROLE[role].toLowerCase()}</span>` : ''}
+      <span class="state ${cls}">${state}</span><span class="sp"></span>${buttons}</div>`;
   }
 
   // Тихая полоса ведущего: всё, что не относится к текущему шагу.
@@ -527,8 +537,9 @@ export function mountEvent(root, id, opt) {
     if (ph === 'gather') b.push(hasBots ? ['bots_clear', 'Убрать тестовых'] : ['bots', 'Тестовые игроки']);
     if (ph === 'gather' && caps() && !st.voting && st.ready.length > 1) b.push(['ready_reset', 'Переспросить готовность']);
     b.push(['copy_link', 'Ссылка для чата'], ['copy_obs', 'Слой для OBS']);
-    return `<div class="tools"><span class="lbl">Управление лобби</span>${b.filter((x) => !used.includes(x[0])).map(([a, t]) => btn(a, t, 'ghost sm')).join('')}
-      <span class="sp"></span>${btn('close', 'Закрыть лобби', 'ghost sm danger')}</div>`;
+    // «Закрыть лобби» прижата к правому краю отдельно: при любой ширине она на одном и том же месте
+    return `<div class="tools"><div class="tl"><span class="lbl">Управление лобби</span>${b.filter((x) => !used.includes(x[0])).map(([a, t]) => btn(a, t, 'ghost sm')).join('')}</div>
+      ${isOwner() ? btn('close', 'Закрыть лобби', 'ghost sm danger') : ''}</div>`;
   }
 
   let shown = null;         // что сейчас на сцене: нужно заголовку вкладки
@@ -552,7 +563,7 @@ export function mountEvent(root, id, opt) {
     const tags = [];
     if (c.live) tags.push('<span class="tag live">LIVE</span>');
     if (o.cap) tags.push(`<span class="tag cap ${o.cap === true ? '' : o.cap}">капитан</span>`);
-    if (uid === st.host.uid && !o.team) tags.push('<span class="tag">ведущий</span>');
+    if (roleOf(uid) && !o.team) tags.push(`<span class="tag">${ROLE[roleOf(uid)].toLowerCase()}</span>`);
     if (c.bot) tags.push('<span class="tag">тест</span>');
     else if (c.guest) tags.push('<span class="tag">гость</span>');
     if (!opt.obs) {
@@ -741,6 +752,23 @@ export function mountEvent(root, id, opt) {
       ${d.done ? '' : `<div class="dgo">${go}</div><div class="hgrid2">${tiles}</div>`}</section>`;
   }
 
+  function staffHtml() {
+    const owner = isOwner() && st.phase !== 'closed';
+    const row = (uid, role) => {
+      const c = card(uid);
+      const off = owner && role !== 'owner' ? `<span class="mini" role="button" data-unstaff="${esc(uid)}">Снять</span>` : '';
+      return `<button class="slot staffrow ${uid === meId() ? 'me-row' : ''}" data-uid="${esc(uid)}">${ava(c)}
+        <span class="who"><span class="nm"><b>${esc(c.name)}</b>${c.live ? '<span class="tag live">LIVE</span>' : ''}</span>
+        <span class="sub">${ROLE[role]}</span></span>${off}</button>`;
+    };
+    const ids = Object.keys(st.staff);
+    const rows = [row(st.host.uid, 'owner')]
+      .concat(ids.filter((u) => st.staff[u] === 'host').map((u) => row(u, 'host')), ids.filter((u) => st.staff[u] === 'caster').map((u) => row(u, 'caster')));
+    return `<section class="card staff"><header><h2>Администрация</h2></header><div class="slots">${rows.join('')}</div>
+      ${owner ? `<div class="staffadd">${btn('staff_add', 'Назначить ведущего или кастера', 'wide')}
+        <p class="dim">Ведущий управляет лобби вместе с тобой. Кастер видит код лобби и заходит в игру наблюдателем.</p></div>` : ''}</section>`;
+  }
+
   function hostInfoHtml() {
     const h = hostInfo || {};
     const parts = [];
@@ -776,7 +804,8 @@ export function mountEvent(root, id, opt) {
     let html;
     if (opt.obs) html = obsHtml();
     else {
-      html = `${headHtml()}${st.note ? `<div class="note">${esc(st.note)}</div>` : ''}${stageHtml()}${roomHtml()}${hostInfoHtml()}`;
+      html = `${headHtml()}${st.note ? `<div class="note">${esc(st.note)}</div>` : ''}
+        <div class="lobby"><div class="lmain">${stageHtml()}${roomHtml()}</div><aside class="lside">${staffHtml()}${hostInfoHtml()}</aside></div>`;
       document.title = (shown && shown.now ? '● ' + shown.title + ' — ' : '') + pageTitle;       // «твой ход» видно и с другой вкладки
     }
     if (html !== lastHtml) {
@@ -857,6 +886,12 @@ export function mountEvent(root, id, opt) {
     if (host && st.phase !== 'closed') {
       const b = [];
       const other = k === 'a' ? 'b' : 'a';
+      if (isOwner() && !c.guest && uid !== st.host.uid) {
+        const r = st.staff[uid];
+        if (r !== 'host') b.push('<button class="btn" data-h="staff_host">Сделать ведущим лобби</button>');
+        if (r !== 'caster') b.push('<button class="btn" data-h="staff_caster">Сделать кастером</button>');
+        if (r) b.push('<button class="btn" data-h="staff_off">Снять из администрации</button>');
+      }
       if (w === 'queue' && caps() && st.phase === 'gather' && !st.voting) {
         const cp = capOf(uid);
         if (cp) b.push('<button class="btn" data-h="uncap">Снять с капитанов</button>');
@@ -896,6 +931,8 @@ export function mountEvent(root, id, opt) {
       let ok = null;
       if (h === 'move') ok = await act('move', { uid, to: k === 'a' ? 'b' : 'a' });
       else if (h === 'captain') ok = await act('captain', { uid });
+      else if (h === 'staff_host' || h === 'staff_caster') ok = await act('staff', { uid, role: h.slice(6) });
+      else if (h === 'staff_off') ok = await act('staff', { uid, role: null });
       else if (h === 'cap_a' || h === 'cap_b') ok = await act('cap_set', { team: h.slice(-1), uid });
       else if (h === 'uncap') ok = await act('cap_set', { team: capOf(uid), uid: null });
       else if (h === 'seat') ok = await act('seat', { uid });
@@ -957,6 +994,25 @@ export function mountEvent(root, id, opt) {
       m.close();
       toast('Настройки сохранены');
     });
+  }
+
+  // Организатор назначает ведущего или кастера по логину Twitch (игрока из списка — и из его карточки).
+  function staffModal() {
+    const m = modal(`${head('Назначить в администрацию')}<div class="body">
+      <label class="field"><span>Логин на Twitch</span><input class="input" id="sf-login" maxlength="30" placeholder="например, qissme_" autocomplete="off"></label>
+      <label class="field"><span>Роль</span><select class="input" id="sf-role">
+        <option value="host">Ведущий — управляет лобби вместе с тобой</option>
+        <option value="caster">Кастер — видит код лобби, заходит наблюдателем</option></select></label>
+      <p class="dim">Человек должен хотя бы раз войти на сайт через Twitch. Ведущий может всё, кроме закрытия лобби и назначений. Список запомнится для твоих следующих лобби.</p></div>
+      <footer><button class="btn" data-close>Отмена</button><button class="btn primary" id="sf-go">Назначить</button></footer>`);
+    const go = async () => {
+      const login = $('#sf-login', m.el).value.trim();
+      if (!login) { toast('Впиши логин Twitch', true); return; }
+      const role = $('#sf-role', m.el).value;
+      if (await act('staff', { login, role })) { m.close(); toast(`${login} — ${ROLE[role].toLowerCase()} лобби`); }
+    };
+    $('#sf-go', m.el).addEventListener('click', go);
+    $('#sf-login', m.el).addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
   }
 
   // Ведущий сам назначает капитана команды из записавшихся.
@@ -1055,6 +1111,7 @@ export function mountEvent(root, id, opt) {
     close: async () => {
       if (await confirmHold({ title: 'Закрыть лобби?', text: 'Запись закроется, игроки разойдутся. Сыгранные игры останутся в истории.', label: 'Закрыть лобби', seconds: 1.5 })) await act('close');
     },
+    staff_add: () => staffModal(),
     new_lobby: async () => {
       try { await call('/events', {}); window.dispatchEvent(new HashChangeEvent('hashchange')); } catch (e) { oops(e); }
     },
@@ -1074,6 +1131,8 @@ export function mountEvent(root, id, opt) {
       if (!a.disabled && ACTS[a.dataset.act]) ACTS[a.dataset.act]();
       return;
     }
+    const un = e.target.closest('[data-unstaff]');
+    if (un) { e.preventDefault(); act('staff', { uid: un.dataset.unstaff, role: null }); return; }
     const v = e.target.closest('[data-vote]');
     const pk = e.target.closest('[data-pick]');
     if (v || pk) {
@@ -1105,6 +1164,7 @@ export function mountEvent(root, id, opt) {
   const offUser = onUser(() => { pv = null; lastHtml = ''; if (st) { getPrivate(); render(); } });
 
   root.innerHTML = '<div class="card empty">Загружаю лобби…</div>';
+  if (!opt.obs) document.body.classList.add('lobbypage');     // страница лобби шире остальных: справа колонка администрации
   connect();
 
   return function unmount() {
@@ -1114,6 +1174,7 @@ export function mountEvent(root, id, opt) {
     if (es) es.close();
     offUser();
     document.title = pageTitle;
+    document.body.classList.remove('lobbypage');
     root.removeEventListener('click', onClick);
     for (const ev of ['dragstart', 'dragend', 'dragover', 'drop']) root.removeEventListener(ev, onDrag);
     closeModal();

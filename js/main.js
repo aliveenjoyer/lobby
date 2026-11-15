@@ -1,12 +1,12 @@
 // Лобби: маршруты, шапка, главная, профиль, страница ведущего.
-import { call, meta, loadMeta, session } from './api.js?v=20261116022036';
+import { call, meta, loadMeta, session } from './api.js?v=20261116023039';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, toast, oops, modal, head, confirmHold,
   ICON, dateRu,
-} from './ui.js?v=20261116022036';
-import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116022036';
-import { mountEvent } from './event.js?v=20261116022036';
-import { profileBlocks } from './profile.js?v=20261116022036';
+} from './ui.js?v=20261116023039';
+import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116023039';
+import { mountEvent } from './event.js?v=20261116023039';
+import { profileBlocks } from './profile.js?v=20261116023039';
 
 const view = $('#view');
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
@@ -140,6 +140,8 @@ function mePage() {
         <section class="card"><header><h2>Игры на сайте</h2></header><div class="body"><div class="kv">
           <div><b>${me.games}</b><span>сыграно</span></div><div><b>${me.wins}</b><span>побед</span></div>
           <div><b>${me.adj > 0 ? '+' : ''}${fmt(me.adj)}</b><span>поправка силы</span></div></div></div></section>
+        ${me.admin ? `<section class="card"><header><h2>Кто может создавать лобби</h2></header>
+          <div class="body" style="display:grid;gap:10px" id="adm-hosts"><span class="dim">Загружаю…</span></div></section>` : ''}
         <section class="card"><header><h2>Удаление</h2></header><div class="body">
           <p class="dim" style="margin-bottom:12px">Удаление стирает с сайта твой профиль, привязку Steam и статистику игр.</p>
           <button class="btn danger" data-p="delete">Удалить профиль</button></div></section>
@@ -147,6 +149,17 @@ function mePage() {
   const save = async (path, body, ok) => {
     try { const d = await call(path, body); setUser(d.me); if (ok) toast(ok); } catch (e) { oops(e); }
   };
+  const drawHosts = (d) => {
+    const box = $('#adm-hosts');
+    if (!box) return;
+    const line = (l, right) => `<div class="row" style="justify-content:space-between"><span>${esc(l)}</span>${right}</div>`;
+    box.innerHTML = `<p class="dim">Эти люди видят кнопку «Создать лобби». Впиши логин Twitch — после входа на сайт человек сможет вести свои лобби.</p>
+      ${d.fixed.map((l) => line(l, '<span class="dim" style="font-size:13px">в настройках сервера</span>')).join('')}
+      ${d.extra.map((l) => line(l, `<button class="btn sm" data-p="host_del" data-login="${esc(l)}">Убрать</button>`)).join('')}
+      <div class="pickers" style="grid-template-columns:1fr auto"><input class="input" id="adm-login" maxlength="30" placeholder="логин Twitch" autocomplete="off">
+      <button class="btn" data-p="host_add">Добавить</button></div>`;
+  };
+  if (me.admin) call('/admin/hosts').then(drawHosts).catch(oops);
   view.onclick = async (e) => {
     const b = e.target.closest('[data-p]');
     if (!b) return;
@@ -165,6 +178,14 @@ function mePage() {
       await save('/me', { mains: ids.length ? ids : null }, 'Мейны сохранены');
     }
     if (a === 'mains_auto') await save('/me', { mains: null }, 'Мейны снова считаются по матчам');
+    if (a === 'host_add') {
+      const l = $('#adm-login').value.trim().replace(/^@/, '');
+      if (!l) { toast('Впиши логин Twitch', true); return; }
+      try { drawHosts(await call('/admin/hosts', { add: l })); toast(l + ' теперь может создавать лобби'); } catch (err) { oops(err); }
+    }
+    if (a === 'host_del') {
+      try { drawHosts(await call('/admin/hosts', { remove: b.dataset.login })); toast(b.dataset.login + ' больше не создаёт лобби'); } catch (err) { oops(err); }
+    }
     if (a === 'delete') {
       if (await confirmHold({ title: 'Удалить профиль?', text: 'С сайта сотрутся профиль, привязка Steam и статистика игр. Вернуть их нельзя.', label: 'Удалить профиль', seconds: 3 })) {
         try { await call('/me/delete', {}); session.set(null); setUser(null); location.hash = '#/'; toast('Профиль удалён'); } catch (err) { oops(err); }

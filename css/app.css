@@ -148,6 +148,16 @@ select.input { appearance: none; padding-right: 30px;
 .empty { padding: 26px 16px; text-align: center; color: var(--dim); }
 
 /* ---------- лобби */
+body.lobbypage .wrap { max-width: 1440px; }
+.lobby { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+.lmain { min-width: 0; }
+.lside { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.staff { overflow: hidden; }
+.staff > header { padding: 13px 16px; border-bottom: 1px solid var(--line); }
+.staffrow { min-height: 54px; }
+.staffrow .sub { color: var(--dim); }
+.staffadd { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 12px 14px 14px; border-top: 1px solid var(--line); }
+.staffadd p { font-size: 13px; }
 .ehead { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-bottom: 16px; }
 .ehead .t { flex: 1 1 260px; min-width: 0; }
 .ehead h1 { font-size: 22px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -188,7 +198,8 @@ select.input { appearance: none; padding-right: 30px;
 .state.ok { color: var(--ok); border-color: rgba(92, 201, 122, .45); }
 .state.a { color: var(--amber-hi); border-color: rgba(212, 134, 11, .55); }
 .state.b { color: var(--sapph-hi); border-color: rgba(77, 117, 195, .6); }
-.tools { gap: 2px; padding: 7px 16px; background: rgba(0, 0, 0, .28); }
+.tools { flex-wrap: nowrap; align-items: flex-start; gap: 8px; padding: 7px 16px; background: rgba(0, 0, 0, .28); }
+.tools .tl { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
 .tools .lbl { margin: 0 8px; }
 .codebox { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; max-width: 580px; padding: 14px 16px; border-radius: 14px; background: var(--bg);
   border: 1px solid var(--line2); }
@@ -461,6 +472,8 @@ body.obs main { padding: 16px; }
   background: rgba(10, 10, 10, .86); border: 1px solid var(--line); font-weight: 600; }
 
 /* ---------- телефон */
+@media (max-width: 1400px) { .poolcol .slot .mains { display: none; } }
+@media (max-width: 1100px) { .lobby { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 980px) {
   .arena.three { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "a b" "p p"; }
   .flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
