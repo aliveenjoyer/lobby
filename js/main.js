@@ -1,13 +1,13 @@
 // Лобби: маршруты, шапка, главная, профиль, страница ведущего.
-import { call, meta, loadMeta, session } from './api.js?v=20261116041956';
+import { call, meta, loadMeta, session } from './api.js?v=20261116043100';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, toast, oops, modal, head, confirmHold,
   ICON, dateRu,
-} from './ui.js?v=20261116041956';
-import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116041956';
-import { mountEvent } from './event.js?v=20261116041956';
-import { profileBlocks } from './profile.js?v=20261116041956';
-import { gameRow, openGame } from './score.js?v=20261116041956';
+} from './ui.js?v=20261116043100';
+import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116043100';
+import { mountEvent } from './event.js?v=20261116043100';
+import { profileBlocks } from './profile.js?v=20261116043100';
+import { gameRow, openGame } from './score.js?v=20261116043100';
 
 const view = $('#view');
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };

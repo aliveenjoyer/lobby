@@ -1,13 +1,13 @@
 // Страница лобби. Правило одно: один шаг — одна главная кнопка.
 // Сверху «сцена»: что сейчас происходит и что нажать именно мне (игроку, капитану или ведущему).
 // Под ней комната: места капитанов, список игроков, команды, драфт героев.
-import { API, BASE, call, meta } from './api.js?v=20261116041956';
+import { API, BASE, call, meta } from './api.js?v=20261116043100';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, clock, toast, oops, modal, head, closeModal,
   confirmHold, copy, rankPicker, pickedRank, ICON, morph,
-} from './ui.js?v=20261116041956';
-import { user, login, linkSteam, onUser } from './auth.js?v=20261116041956';
-import { scoreHtml, gameRow, openGame } from './score.js?v=20261116041956';
+} from './ui.js?v=20261116043100';
+import { user, login, linkSteam, onUser } from './auth.js?v=20261116043100';
+import { scoreHtml, gameRow, openGame } from './score.js?v=20261116043100';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 const TEAM_GEN = { a: 'Янтаря', b: 'Сапфира' };
@@ -747,7 +747,8 @@ export function mountEvent(root, id, opt) {
     const ph = st.phase;
     if (!st.teams) return caps() ? (ph === 'closed' ? '' : capsBlock() + playersBlock()) : seatsBlock();
     const d = st.draft;
-    if (ph === 'teams' && d && !d.done) return draftHtml();
+    // во время драфта под доской — составы команд: люди должны видеть, кто с кем (просьба владельца на живой игре 16.11)
+    if (ph === 'teams' && d && !d.done) return `${draftHtml()}<div class="arena two">${teamCol('a')}${teamCol('b')}</div>`;
     const bar = st.sums && !opt.obs && !caps() ? `<div class="sumbar"><span>Баланс команд: <b>${esc(st.sums.words)}</b></span>
       ${st.dirty ? '<span class="chip warn">состав изменился</span>' : `<span class="num">разница в силе ${fmt(st.sums.diff)}</span>`}</div>` : '';
     const mid = caps() && (ph === 'pick' || (st.queue.length && ['teams', 'lobby'].includes(ph)));
