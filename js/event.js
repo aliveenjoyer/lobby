@@ -1,13 +1,13 @@
 // Страница лобби. Правило одно: один шаг — одна главная кнопка.
 // Сверху «сцена»: что сейчас происходит и что нажать именно мне (игроку, капитану или ведущему).
 // Под ней комната: места капитанов, список игроков, команды, драфт героев.
-import { API, BASE, call, meta } from './api.js?v=20261116052211';
+import { API, BASE, call, meta } from './api.js?v=20261116052615';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, clock, toast, oops, modal, head, closeModal,
   confirmHold, copy, rankPicker, pickedRank, ICON, morph,
-} from './ui.js?v=20261116052211';
-import { user, login, linkSteam, onUser } from './auth.js?v=20261116052211';
-import { scoreHtml, gameRow, openGame } from './score.js?v=20261116052211';
+} from './ui.js?v=20261116052615';
+import { user, login, linkSteam, onUser } from './auth.js?v=20261116052615';
+import { scoreHtml, gameRow, openGame } from './score.js?v=20261116052615';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 const TEAM_GEN = { a: 'Янтаря', b: 'Сапфира' };
@@ -209,7 +209,7 @@ export function mountEvent(root, id, opt) {
     // зритель, который ещё не записан: главная кнопка — записаться (или то, что этому мешает)
     const offerJoin = (text) => {
       // кастеру главное — код лобби, а не запись; сыграть сам он может кнопкой «Записаться» в строке «Ты»
-      if (caster) { g.text = 'Ты кастер: когда появится лобби в игре, здесь будет код — заходи наблюдателем. Ссылка на слой для OBS — в строке ниже.'; return; }
+      if (caster) { g.text = 'Ты кастер: когда появится лобби в игре, здесь будет код — заходи наблюдателем.'; return; }
       if (blocked) { g.text = blocked.text; g.btns = blocked.btns; return; }
       const free = !caps() && st.seats.length < cap() && !st.queue.length && ['gather', 'teams', 'lobby'].includes(ph);
       g.text = text;
@@ -240,15 +240,18 @@ export function mountEvent(root, id, opt) {
 
     if (ph === 'live') {
       const m = st.match || {};
-      const seen = !!(m.table || m.watch);                  // сайт сам следит за игрой: таблица и итог придут без кнопок
+      const live = !!(m.watch || (m.table && m.table.live));          // сайт сам следит за игрой: таблица и итог придут без кнопок
+      const lost = !!m.table && !live;                                // следил, но трансляцию потерял: таблица больше не обновляется
       g.title = 'Матч идёт';
       if (host) {
-        g.text = seen ? 'Сайт следит за игрой: таблица ниже обновляется сама, итог появится, как только матч закончится. Отмечать победителя нужно, только если что-то пошло не так.'
-          : m.id ? 'Ищу трансляцию матча: через минуту здесь появится живая таблица. Если не появится — отметь победителя, когда игра закончится.'
-            : 'Когда игра закончится, отметь победителя.';
+        g.text = live ? 'Сайт следит за игрой: таблица ниже обновляется сама, итог появится, как только матч закончится. Отмечать победителя нужно, только если что-то пошло не так.'
+          : lost ? 'Сайт потерял трансляцию матча: таблица ниже — последняя, что удалось получить. Когда игра закончится, отметь победителя.'
+            : m.id ? 'Ищу трансляцию матча: через минуту здесь появится живая таблица. Если не появится — отметь победителя, когда игра закончится.'
+              : 'Когда игра закончится, отметь победителя.';
         g.btns = [btn('win_a', 'Победил Янтарь', 'xl amber'), btn('win_b', 'Победил Сапфир', 'xl sapph')];
       } else {
-        g.text = `${w === 'seat' ? 'Удачи! ' : ''}${m.table ? 'Таблица матча ниже обновляется сама. Итог появится здесь, когда игра закончится.' : 'Итог появится здесь, когда игра закончится.'}`;
+        g.text = `${w === 'seat' ? 'Удачи! ' : ''}${live && m.table ? 'Таблица матча ниже обновляется сама. Итог появится здесь, когда игра закончится.'
+          : lost ? 'Таблица ниже — последняя, что сайт успел получить. Итог появится здесь, когда его отметит ведущий.' : 'Итог появится здесь, когда игра закончится.'}`;
       }
       return g;
     }
@@ -568,7 +571,6 @@ export function mountEvent(root, id, opt) {
       b.push(['join', caps() ? 'Записаться' : 'Записаться на игру', 'ok']);
     }
     const role = roleOf(uid);
-    if (role === 'caster') b.unshift(['copy_obs', 'Слой для OBS']);
     const buttons = b.filter((x) => !used.includes(x[0])).map(([a, t, cl]) => btn(a, t, 'sm ' + (cl || ''))).join('');
     return `<div class="merow"><span class="lbl">Ты</span>${ava(me, 's')}<b>${esc(me.name)}</b>
       <span class="rk">${badge ? esc(badgeName(badge)) : 'без ранга'}</span>${role ? `<span class="state">${ROLE[role].toLowerCase()}</span>` : ''}
@@ -584,7 +586,8 @@ export function mountEvent(root, id, opt) {
     if (!['live', 'done'].includes(ph)) b.push(['settings', 'Настройки'], ['guest', 'Добавить гостя']);
     if (ph === 'gather') b.push(hasBots ? ['bots_clear', 'Убрать тестовых'] : ['bots', 'Тестовые игроки']);
     if (ph === 'gather' && caps() && !st.voting && st.ready.length > 1) b.push(['ready_reset', 'Переспросить готовность']);
-    b.push(['copy_link', 'Ссылка для чата'], ['copy_obs', 'Слой для OBS']);
+    // кнопки «Слой для OBS» здесь больше нет (владелец 16.11: «он не нужен вообще»); сама страница жива: /#/obs/<логин ведущего>
+    b.push(['copy_link', 'Ссылка для чата']);
     // «Закрыть лобби» прижата к правому краю отдельно: при любой ширине она на одном и том же месте
     return `<div class="tools"><div class="tl"><span class="lbl">Управление лобби</span>${b.filter((x) => !used.includes(x[0])).map(([a, t]) => btn(a, t, 'ghost sm')).join('')}</div>
       ${isOwner() ? btn('close', 'Закрыть лобби', 'ghost sm danger') : ''}</div>`;
@@ -1262,7 +1265,6 @@ export function mountEvent(root, id, opt) {
     settings: () => settingsModal(),
     guest: () => guestModal(),
     copy_link: () => copy(BASE + '/#/' + st.host.login, 'Ссылка скопирована: кидай в чат'),
-    copy_obs: () => copy(BASE + '/#/obs/' + st.host.login, 'Ссылка для источника «Браузер» в OBS скопирована'),
     connect: () => {
       if (!pv || !pv.code) { toast('Код лобби ещё не пришёл. Секунду', true); getPrivate(); return; }
       copy(pv.code, 'Код лобби скопирован');
