@@ -688,7 +688,7 @@ body.obs::before { display: none; }
 /* предметы игрока: плитка цвета категории (оружие, живучесть, дух) с белым значком. В узкой таблице — второй строкой
    под игроком, в широкой (от 1320 px) — колонкой справа, как на экране итогов в игре */
 .score { container-type: inline-size; }
-.its { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 3px; margin: 3px 0 0; padding: 0 0 10px 40px; }
+.its { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 3px; min-height: 34px; margin: 3px 0 0; padding: 0 0 10px 40px; }
 .shead .hits { display: none; text-align: left; }
 .it { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; background: var(--glass2); }
 .it.w { background: #b06e14; }
@@ -699,7 +699,7 @@ body.obs::before { display: none; }
 @container (min-width: 1320px) {
   .score.items .shead, .score.items .srow { grid-template-columns: minmax(0, 1fr) 96px repeat(4, 92px) 436px; }
   .score.items .shead .hits { display: block; }
-  .score.items .its { grid-column: auto; flex-wrap: nowrap; margin: 0; padding: 0; overflow: hidden; }
+  .score.items .its { grid-column: auto; flex-wrap: nowrap; min-height: 0; margin: 0; padding: 0; overflow: hidden; }
 }
 .score.live .sclock { color: #ff8a8a; }
 .tag.mvp { margin-left: 7px; padding: 1px 6px; font: 700 10.5px/1.5 var(--mono); letter-spacing: .04em; vertical-align: 1px; color: #1a1300;
