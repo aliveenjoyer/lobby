@@ -1,13 +1,13 @@
 // Страница лобби. Правило одно: один шаг — одна главная кнопка.
 // Сверху «сцена»: что сейчас происходит и что нажать именно мне (игроку, капитану или ведущему).
 // Под ней комната: места капитанов, список игроков, команды, драфт героев.
-import { API, BASE, call, meta } from './api.js?v=20261116052851';
+import { API, BASE, call, meta } from './api.js?v=20261116053034';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, clock, toast, oops, modal, head, closeModal,
   confirmHold, copy, rankPicker, pickedRank, ICON, morph,
-} from './ui.js?v=20261116052851';
-import { user, login, linkSteam, onUser } from './auth.js?v=20261116052851';
-import { scoreHtml, gameRow, openGame } from './score.js?v=20261116052851';
+} from './ui.js?v=20261116053034';
+import { user, login, linkSteam, onUser } from './auth.js?v=20261116053034';
+import { scoreHtml, gameRow, openGame } from './score.js?v=20261116053034';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 const TEAM_GEN = { a: 'Янтаря', b: 'Сапфира' };
@@ -1090,7 +1090,7 @@ export function mountEvent(root, id, opt) {
         <label class="field"><span>Кто набирает команды</span>${sel('teams', meta.teams, s.teams)}</label>
         <label class="field"><span>Драфт героев</span>${sel('draft', meta.drafts, s.draft)}</label>
         <label class="field"><span>Банов на команду</span>${sel('bans', { 1: '1', 2: '2', 3: '3', 4: '4' }, s.bans)}</label>
-        <label class="field"><span>Порядок выбора героев</span>${sel('order', meta.orders, s.order)}</label>
+        <label class="field"><span>Порядок выбора игроков и героев</span>${sel('order', meta.orders, s.order)}</label>
         <label class="field"><span>Секунд на ход</span>${sel('pick_seconds', { 15: '15', 20: '20', 30: '30', 45: '45', 60: '60' }, s.pick_seconds)}</label>
         <label class="field"><span>Дополнительное время команды на драфт</span>${sel('reserve_seconds', { 0: 'нет', 30: '0:30', 60: '1:00', 90: '1:30', 120: '2:00', 180: '3:00' }, s.reserve_seconds == null ? 90 : s.reserve_seconds)}</label>
         <label class="field"><span>Режим игры</span>${sel('mode', meta.modes, s.mode)}</label>
