@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Привязка Steam — Лобби</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css?v=20261115234546">
+</head>
+<body>
+<main><div class="wrap" style="max-width:520px"><div class="card empty" id="box"><h3>Привязываю Steam…</h3><p class="dim" style="margin-top:6px">Пара секунд: сайт забирает ранг и героев.</p></div></div></main>
+<script type="module">
+import { call, session } from './js/api.js?v=20261115234546';
+const box = document.getElementById('box');
+const q = new URLSearchParams(location.search);
+let back = '#/me';
+try { back = sessionStorage.getItem('lobby.back') || back; } catch (e) { /* вернёмся в профиль */ }
+const fail = (text) => {
+  box.innerHTML = '<h3>Steam не привязан</h3><p class="dim" style="margin:6px 0 14px"></p><a class="btn primary" href="./#/me">Вернуться в профиль</a>';
+  box.querySelector('p').textContent = text;
+};
+const params = {};
+for (const [k, v] of q) if (k.startsWith('openid.')) params[k] = v;
+if (!session.token) fail('Сначала войди на сайте через Twitch, потом нажми «Привязать Steam» ещё раз.');
+else if (params['openid.mode'] !== 'id_res') fail('Вход через Steam отменён.');
+else {
+  try {
+    await call('/steam/finish', { state: q.get('s'), params });
+    try { sessionStorage.setItem('lobby.flash', 'Steam привязан: ранг и герои подставлены'); sessionStorage.removeItem('lobby.back'); } catch (e) { /* без сообщения */ }
+    location.replace('./' + back);
+  } catch (e) { fail(e.message); }
+}
+</script>
+</body>
+</html>

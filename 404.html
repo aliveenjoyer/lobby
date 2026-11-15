@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<title>Лобби</title>
+<script>
+// lobby.aliveenjoyer.art/qissme_ -> lobby.aliveenjoyer.art/#/qissme_ (страницы живут за решёткой)
+(function () {
+  var p = location.pathname, base = '/';
+  if (p.indexOf('/lobby/') === 0) { base = '/lobby/'; p = p.slice(6); }
+  location.replace(base + '#' + p.replace(/\/+$/, '') + location.search);
+})();
+</script>
+</head>
+<body style="background:#0a0a0a"></body>
+</html>
