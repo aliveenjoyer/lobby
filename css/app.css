@@ -635,6 +635,45 @@ body.obs::before { display: none; }
 /* во время голосования в строке игрока главное — имя и кнопка «Голос» */
 .people.voting .tag:not(.cap) { display: none; }
 
+/* таблица матча: живая и итоговая. Строки без разделителей; под каждым числом — тонкая полоска доли от лучшего в колонке */
+.score { margin-bottom: 16px; padding-bottom: 10px; }
+.score > header { display: flex; align-items: center; gap: 10px; padding: 15px 18px 2px; }
+.score > header h2 { margin-right: auto; }
+.sclock { font-size: 16px; font-weight: 600; }
+.shead, .srow { display: grid; grid-template-columns: minmax(0, 1fr) 96px repeat(4, 92px); align-items: center; column-gap: 12px; }
+.shead { padding: 8px 18px 0; font-size: 12px; color: var(--mute); }
+.shead span { text-align: right; white-space: nowrap; }
+.sth { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 14px 18px 4px; }
+.sth .tn { font-weight: 600; font-size: 15px; }
+.sth.a .tn { color: var(--amber-hi); }
+.sth.b .tn { color: var(--sapph-hi); }
+.sth .tsum { font-size: 13px; color: var(--dim); white-space: nowrap; }
+.sth .tsum b { color: var(--text); font: 600 13px/1 var(--mono); }
+.srow { min-height: 48px; margin: 0 6px; padding: 0 12px; border-radius: 11px; }
+.srow[data-uid] { cursor: pointer; }
+.srow:hover { background: rgba(255, 255, 255, .05); }
+.srow.mine { background: rgba(255, 255, 255, .055); }
+.srow .sp { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.srow .who { display: grid; min-width: 0; }
+.srow .who b { font-weight: 600; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.srow .sub { font-size: 12px; color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.srow .kda { text-align: right; font: 600 14px/1 var(--mono); white-space: nowrap; }
+.srow .kda em { margin: 0 3px; font-style: normal; font-weight: 400; color: var(--mute); }
+.srow .kda .dth { font-weight: 500; color: var(--dim); }
+.sc { position: relative; display: block; padding-bottom: 6px; text-align: right; }
+.sc b { font: 500 14px/1 var(--mono); color: var(--dim); }
+.sc.best b { font-weight: 700; color: var(--text); }
+.sc i { position: absolute; right: 0; bottom: 0; height: 2px; min-width: 2px; border-radius: 2px; opacity: .6; }
+.srow.a .sc i { background: var(--amber); }
+.srow.b .sc i { background: var(--sapph); }
+.sc.best i { opacity: 1; }
+.srow.dead .hero { filter: grayscale(1); opacity: .4; }
+.score.live .sclock { color: #ff8a8a; }
+.scorebody { padding: 0 0 6px; }
+.scorebody .score { margin: 0; background: transparent; box-shadow: none; }
+.scorebody .score > header { display: none; }
+.obsbox .score { margin: 0; }
+
 /* окна */
 .sheet { background: #151517; }
 .todo { display: grid; gap: 8px; margin: 0; padding-left: 22px; color: var(--dim); }
@@ -655,6 +694,17 @@ body.obs::before { display: none; }
   .dside.a .dbans { justify-content: flex-start; }
   .dhead { font-size: 14px; gap: 10px; }
   .dclock { font-size: 30px; }
+}
+@media (max-width: 760px) {
+  .shead, .srow { grid-template-columns: minmax(0, 1fr) 66px 58px 58px; column-gap: 6px; }
+  .srow .kda em { margin: 0 1px; }
+  .score .opt { display: none; }
+  .shead, .sth, .score > header { padding-left: 14px; padding-right: 14px; }
+  .srow { margin: 0 4px; padding: 0 10px; }
+  .srow .sp { gap: 8px; }
+  .srow .hero.m { width: 26px; height: 26px; }
+  .srow .kda, .sc b { font-size: 13px; }
+  .sth .tsum { font-size: 12px; }
 }
 @media (max-width: 640px) {
   .arena.hsplit { grid-template-columns: minmax(0, 1fr); }       /* на телефоне герои команд — друг под другом, иначе в карточку не попасть */

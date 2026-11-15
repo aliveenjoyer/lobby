@@ -1,12 +1,13 @@
 // Лобби: маршруты, шапка, главная, профиль, страница ведущего.
-import { call, meta, loadMeta, session } from './api.js?v=20261116031127';
+import { call, meta, loadMeta, session } from './api.js?v=20261116035856';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, toast, oops, modal, head, confirmHold,
   ICON, dateRu,
-} from './ui.js?v=20261116031127';
-import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116031127';
-import { mountEvent } from './event.js?v=20261116031127';
-import { profileBlocks } from './profile.js?v=20261116031127';
+} from './ui.js?v=20261116035856';
+import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116035856';
+import { mountEvent } from './event.js?v=20261116035856';
+import { profileBlocks } from './profile.js?v=20261116035856';
+import { scoreHtml } from './score.js?v=20261116035856';
 
 const view = $('#view');
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
@@ -201,12 +202,13 @@ async function userPage(login, fresh) {
 }
 
 // ---------------------------------------------------------------- страница ведущего
-function matchRow(m) {
+function matchRow(m, i) {
   const names = (k) => (m.teams && m.teams[k] ? m.teams[k].map((p) => esc(p.name)).join(', ') : '');
   const w = m.winner;
+  const has = m.table && m.table.rows && m.table.rows.length;
   return `<div class="mrow"><span class="dim d">${dateRu(m.at)}${m.round > 1 ? ' · игра ' + m.round : ''}</span>
     <span><span class="w ${w}">Победил ${TEAM[w]}</span><span class="dim"> — ${names(w)}</span><br><span class="mute" style="font-size:13px">против: ${names(w === 'a' ? 'b' : 'a')}</span></span>
-    ${m.match_id ? `<a class="btn sm" href="https://statlocker.gg/match/${m.match_id}" target="_blank" rel="noopener">Матч</a>` : '<span></span>'}</div>`;
+    ${has ? `<button class="btn sm" data-hp="table" data-i="${i}">Таблица</button>` : '<span></span>'}</div>`;
 }
 
 async function hostPage(login, fresh, obs) {
@@ -243,6 +245,10 @@ async function hostPage(login, fresh, obs) {
       if (!b) return;
       if (b.dataset.hp === 'create') { try { await call('/events', {}); await draw(); } catch (err) { oops(err); } }
       if (b.dataset.hp === 'edit') editHost(h, () => { draw().catch(oops); });
+      if (b.dataset.hp === 'table') {
+        const m = h.matches[+b.dataset.i];
+        if (m && m.table) modal(`${head(`${dateRu(m.at)} · победил ${TEAM[m.winner]}`)}<div class="body scorebody">${scoreHtml(Object.assign({}, m.table, { live: false }), { win: m.winner })}</div>`, { wide: true });
+      }
     };
   };
   await draw();

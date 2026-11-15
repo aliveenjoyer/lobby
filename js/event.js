@@ -1,12 +1,13 @@
 // Страница лобби. Правило одно: один шаг — одна главная кнопка.
 // Сверху «сцена»: что сейчас происходит и что нажать именно мне (игроку, капитану или ведущему).
 // Под ней комната: места капитанов, список игроков, команды, драфт героев.
-import { API, BASE, call, meta } from './api.js?v=20261116031127';
+import { API, BASE, call, meta } from './api.js?v=20261116035856';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, clock, toast, oops, modal, head, closeModal,
   confirmHold, copy, rankPicker, pickedRank, ICON, morph,
-} from './ui.js?v=20261116031127';
-import { user, login, linkSteam, onUser } from './auth.js?v=20261116031127';
+} from './ui.js?v=20261116035856';
+import { user, login, linkSteam, onUser } from './auth.js?v=20261116035856';
+import { scoreHtml } from './score.js?v=20261116035856';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 const TEAM_GEN = { a: 'Янтаря', b: 'Сапфира' };
@@ -62,6 +63,9 @@ export function mountEvent(root, id, opt) {
     if (dead) return;
     es = new EventSource(API + '/events/' + id + '/stream');
     es.onmessage = (e) => { try { apply(JSON.parse(e.data)); } catch (err) { console.error(err); } };
+    es.addEventListener('table', (e) => {
+      try { if (st && st.match) { st.match.table = JSON.parse(e.data); render(); } } catch (err) { console.error(err); }
+    });
     es.onerror = () => {
       if (dead || es.readyState !== 2) return;         // сам переподключится
       es = null;
@@ -234,11 +238,17 @@ export function mountEvent(root, id, opt) {
     }
 
     if (ph === 'live') {
+      const m = st.match || {};
+      const seen = !!(m.table || m.watch);                  // сайт сам следит за игрой: таблица и итог придут без кнопок
       g.title = 'Матч идёт';
       if (host) {
-        g.text = st.match && st.match.id ? 'Итог придёт из игры сам. Не пришёл — отметь победителя.' : 'Когда игра закончится, отметь победителя.';
+        g.text = seen ? 'Сайт следит за игрой: таблица ниже обновляется сама, итог появится, как только матч закончится. Отмечать победителя нужно, только если что-то пошло не так.'
+          : m.id ? 'Ищу трансляцию матча: через минуту здесь появится живая таблица. Если не появится — отметь победителя, когда игра закончится.'
+            : 'Когда игра закончится, отметь победителя.';
         g.btns = [btn('win_a', 'Победил Янтарь', 'xl amber'), btn('win_b', 'Победил Сапфир', 'xl sapph')];
-      } else g.text = w === 'seat' ? 'Удачи! Итог появится здесь сам.' : 'Итог появится здесь, когда игра закончится.';
+      } else {
+        g.text = `${w === 'seat' ? 'Удачи! ' : ''}${m.table ? 'Таблица матча ниже обновляется сама. Итог появится здесь, когда игра закончится.' : 'Итог появится здесь, когда игра закончится.'}`;
+      }
       return g;
     }
 
@@ -725,6 +735,13 @@ export function mountEvent(root, id, opt) {
     return `<div class="bansrow"><span>Забанены</span>${bans.map((h) => `<span class="dban full" title="${esc(heroName(h))}">${heroImg(h)}</span>`).join('')}</div>`;
   }
 
+  // Таблица матча: во время игры живая, после — итоговая. Победителя берём из итога лобби: ведущий мог его поправить.
+  function scoreBlock() {
+    const m = st.match;
+    if (!m || !m.table || !['live', 'done'].includes(st.phase)) return '';
+    return scoreHtml(m.table, { me: opt.obs ? null : meId(), card: (u) => cards()[u] || null, win: m.result ? m.result.winner : null });
+  }
+
   function roomHtml() {
     const ph = st.phase;
     if (!st.teams) return caps() ? (ph === 'closed' ? '' : capsBlock() + playersBlock()) : seatsBlock();
@@ -735,7 +752,7 @@ export function mountEvent(root, id, opt) {
     const mid = caps() && (ph === 'pick' || (st.queue.length && ['teams', 'lobby'].includes(ph)));
     const tail = !caps() && st.queue.length ? `<section class="card plist"><header><h2>Очередь</h2><span class="dim num">${st.queue.length}</span></header>
       <div class="pgrid">${st.queue.map((u, i) => slot(u, { pos: i + 1 })).join('')}</div></section>` : '';
-    return `${bar}${heroesHtml()}${bansRow()}<div class="arena ${mid ? 'three' : 'two'}">${teamCol('a')}${mid ? poolCol() : ''}${teamCol('b')}</div>${tail}`;
+    return `${scoreBlock()}${bar}${heroesHtml()}${bansRow()}<div class="arena ${mid ? 'three' : 'two'}">${teamCol('a')}${mid ? poolCol() : ''}${teamCol('b')}</div>${tail}`;
   }
 
   // Доска драфта: лента ходов, слоты героев двух команд (без ников: игроки разберут героев сами после драфта),
@@ -867,6 +884,8 @@ export function mountEvent(root, id, opt) {
     } else if (st.voting) line = `Голосование за капитанов · <span class="timer mono" data-until="${st.voting.until}"></span>`;
     let body;
     let count;
+    const score = scoreBlock();
+    if (score) return `<div class="obsbox wide"><div class="obst"><span>${line}</span></div>${score}</div>`;
     if (st.teams) { body = `<div class="arena two">${teamCol('a')}${teamCol('b')}</div>`; count = `${st.seats.length} из ${cap()}`; }
     else if (caps()) { body = capsBlock(); count = `записались ${st.queue.length}`; }
     else {
@@ -899,6 +918,10 @@ export function mountEvent(root, id, opt) {
     const t = now();
     for (const el of root.querySelectorAll('[data-until]')) {
       const txt = clock(+el.dataset.until - t);
+      if (el.textContent !== txt) el.textContent = txt;
+    }
+    for (const el of root.querySelectorAll('[data-since]')) {            // часы матча в живой таблице идут вперёд
+      const txt = clock(Math.floor(t - +el.dataset.since));
       if (el.textContent !== txt) el.textContent = txt;
     }
   }
