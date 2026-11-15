@@ -1,10 +1,10 @@
 // Страница кастомки: состав, очередь, команды, драфт, лобби, итог — и пульт стримера.
-import { API, BASE, call, meta } from './api.js?v=20261116000637';
+import { API, BASE, call, meta } from './api.js?v=20261116001827';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, clock, toast, oops, modal, head, closeModal,
   confirmHold, copy, rankPicker, pickedRank, ICON,
-} from './ui.js?v=20261116000637';
-import { user, login, linkSteam, onUser } from './auth.js?v=20261116000637';
+} from './ui.js?v=20261116001827';
+import { user, login, linkSteam, onUser } from './auth.js?v=20261116001827';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 const TEAM_GEN = { a: 'Янтаря', b: 'Сапфира' };
@@ -474,7 +474,8 @@ export function mountEvent(root, id, opt) {
       <div><b>${s.wr == null ? '—' : s.wr + '%'}</b><span>побед</span></div>
       <div><b>${s.kda == null ? '—' : String(s.kda).replace('.', ',')}</b><span>KDA</span></div>
       <div><b>${fmt(s.spm)}</b><span>душ в минуту</span></div>
-      <div><b>${s.m30 ? s.wr30 + '%' : '—'}</b><span>побед за 30 дней (${s.m30})</span></div></div>
+      <div><b>${s.m30 ? s.wr30 + '%' : '—'}</b><span>побед за 30 дней (${s.m30})</span></div>
+      ${s.index != null ? `<div><b>${s.index}</b><span>индекс игры из 100</span></div>` : ''}</div>
       ${s.heroes.length ? `<div class="hlist">${s.heroes.map((h) => `<div>${heroImg(h.id, 'm')}<span class="n">${esc(heroName(h.id))}</span><span class="dim num">${h.m} ${plural(h.m, 'матч', 'матча', 'матчей')} · ${h.wr}%</span></div>`).join('')}</div>` : ''}`
       : `<p class="dim">${c.guest ? 'Гостя добавил стример, статистики нет.' : 'Steam не привязан: статистики нет.'}</p>`;
     let tools = '';

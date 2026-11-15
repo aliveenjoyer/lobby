@@ -1,11 +1,12 @@
 // Лобби: маршруты, шапка, главная, профиль, страница стримера.
-import { call, meta, loadMeta, session } from './api.js?v=20261116000637';
+import { call, meta, loadMeta, session } from './api.js?v=20261116001827';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, toast, oops, modal, head, confirmHold, rankPicker, pickedRank,
   ICON, dateRu,
-} from './ui.js?v=20261116000637';
-import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116000637';
-import { mountEvent } from './event.js?v=20261116000637';
+} from './ui.js?v=20261116001827';
+import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116001827';
+import { mountEvent } from './event.js?v=20261116001827';
+import { profileBlocks } from './profile.js?v=20261116001827';
 
 const view = $('#view');
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
@@ -100,18 +101,6 @@ async function home(fresh) {
 }
 
 // ---------------------------------------------------------------- профиль
-function statsHtml(s) {
-  if (!s) return '';
-  return `<div class="kv">
-    <div><b>${fmt(s.matches)}</b><span>матчей в базе</span></div>
-    <div><b>${s.wr == null ? '—' : s.wr + '%'}</b><span>побед</span></div>
-    <div><b>${s.kda == null ? '—' : String(s.kda).replace('.', ',')}</b><span>KDA</span></div>
-    <div><b>${fmt(s.spm)}</b><span>душ в минуту</span></div>
-    <div><b>${s.m30 ? s.wr30 + '%' : '—'}</b><span>побед за 30 дней (${s.m30})</span></div></div>
-    ${s.heroes.length ? `<div class="hlist">${s.heroes.map((h) => `<div>${heroImg(h.id, 'm')}<span class="n">${esc(heroName(h.id))}</span>
-      <span class="dim num">${h.m} ${plural(h.m, 'матч', 'матча', 'матчей')} · ${h.wr}% побед · KDA ${String(h.kda).replace('.', ',')}</span></div>`).join('')}</div>` : ''}`;
-}
-
 function mePage() {
   const me = user.me;
   if (!me) {
@@ -121,24 +110,23 @@ function mePage() {
     return;
   }
   const src = { game: 'ранг из игры', manual: 'ранг со слов', none: 'ранга пока нет', host: '' }[me.src];
-  const form = me.stats && me.stats.form ? ` · форма ${me.stats.form > 0 ? '+' : ''}${fmt(me.stats.form)}` : '';
-  const adj = me.adj ? ` · по кастомкам ${me.adj > 0 ? '+' : ''}${fmt(me.adj)}` : '';
   const manual = `<div class="field"><span>${me.steam ? 'В рейтинговых матчах ранга нет. Укажи его сам — стример увидит пометку «со слов».' : 'Или укажи ранг вручную — стример увидит пометку «со слов».'}</span>
     ${rankPicker('p-rank', me.manual_badge)}</div><div class="row"><button class="btn" data-p="rank">Сохранить ранг</button></div>`;
   const heroSel = (i) => `<select class="input" data-main="${i}"><option value="0">Не выбран</option>${meta.heroes.map((h) => `<option value="${h.id}" ${me.mains[i] === h.id ? 'selected' : ''}>${esc(h.name)}</option>`).join('')}</select>`;
-  view.innerHTML = `<div class="phead">${ava(me, 'l')}<div class="t"><h1>${esc(me.name)}</h1><div class="dim">twitch.tv/${esc(me.login)}</div></div>
+  view.innerHTML = `<div class="phead">${ava(me, 'l')}<div class="t"><h1>${esc(me.name)}</h1>
+      <div class="row" style="margin-top:6px"><a class="chip" href="https://twitch.tv/${esc(me.login)}" target="_blank" rel="noopener">twitch.tv/${esc(me.login)}</a>
+        ${me.steam ? `<a class="chip" href="https://statlocker.gg/profile/${me.steam}" target="_blank" rel="noopener">Statlocker</a><span class="chip ok">Steam привязан</span>` : ''}</div></div>
       <button class="btn" data-p="logout">Выйти</button></div>
+    ${me.steam ? profileBlocks({ badge: me.badge, pts: me.pts, src: me.src, stats: me.stats }, me.more) : ''}
+    <h2 class="sech">Настройки профиля</h2>
     <div class="grid2">
-      <section class="card"><header><h2>Ранг и Steam</h2>${me.steam ? '<span class="chip ok">Steam привязан</span>' : ''}</header><div class="body" style="display:grid;gap:14px">
-        <div class="rankrow">${badgeImg(me.badge, 'l')}<div class="t"><b>${esc(badgeName(me.badge))}</b>
-          <span class="dim">${src}${me.pts != null ? ' · сила ' + fmt(me.pts) : ''}${form}${adj}</span></div></div>
-        ${me.steam ? `${me.steam_name ? `<div class="dim">Steam: ${esc(me.steam_name)}</div>` : ''}${statsHtml(me.stats)}
+      <section class="card"><header><h2>Steam и ранг</h2></header><div class="body" style="display:grid;gap:14px">
+        ${me.steam ? `<div class="dim">Привязан Steam${me.steam_name ? ': ' + esc(me.steam_name) : ''}. Статистика обновляется сама, когда ты записываешься на игру.</div>
           ${me.src !== 'game' ? manual : ''}
           <label class="switch"><span>Показывать ссылку на мой Statlocker на карточке</span><input type="checkbox" id="p-show" ${me.show_steam ? 'checked' : ''}><i></i></label>
-          <div class="row"><button class="btn" data-p="refresh">Обновить статистику</button>
-            <a class="btn" href="https://statlocker.gg/profile/${me.steam}" target="_blank" rel="noopener">Мой Statlocker</a>
-            <button class="btn ghost" data-p="unlink">Отвязать Steam</button></div>`
-    : `<p class="dim">Привяжи Steam: сайт узнает номер аккаунта, а по нему ранг и героев. Пароль сайт не видит — вход идёт на странице Steam.</p>
+          <div class="row"><button class="btn" data-p="refresh">Обновить статистику</button><button class="btn ghost" data-p="unlink">Отвязать Steam</button></div>`
+    : `<div class="rankrow">${badgeImg(me.badge, 'l')}<div class="t"><b>${esc(badgeName(me.badge))}</b><span class="dim">${src}${me.pts != null ? ' · сила ' + fmt(me.pts) : ''}</span></div></div>
+          <p class="dim">Привяжи Steam: сайт узнает номер аккаунта, а по нему ранг, героев и статистику. Пароль сайт не видит — вход идёт на странице Steam.</p>
           <div class="row"><button class="btn primary" data-p="steam">${ICON.steam}<span>Привязать Steam</span></button></div>${manual}`}
       </div></section>
       <div class="col">
@@ -149,7 +137,7 @@ function mePage() {
         <section class="card"><header><h2>Кастомки на сайте</h2></header><div class="body"><div class="kv">
           <div><b>${me.games}</b><span>сыграно</span></div><div><b>${me.wins}</b><span>побед</span></div>
           <div><b>${me.adj > 0 ? '+' : ''}${fmt(me.adj)}</b><span>поправка силы</span></div></div></div></section>
-        <section class="card"><header><h2>Профиль</h2></header><div class="body">
+        <section class="card"><header><h2>Удаление</h2></header><div class="body">
           <p class="dim" style="margin-bottom:12px">Удаление стирает с сайта твой профиль, привязку Steam и статистику кастомок.</p>
           <button class="btn danger" data-p="delete">Удалить профиль</button></div></section>
       </div></div>`;
@@ -195,14 +183,9 @@ async function userPage(login, fresh) {
       <div class="row" style="margin-top:6px">${c.live ? '<span class="chip live">LIVE</span>' : ''}
         <a class="chip" href="https://twitch.tv/${esc(c.login)}" target="_blank" rel="noopener">twitch.tv/${esc(c.login)}</a>
         ${c.steam ? `<a class="chip" href="https://statlocker.gg/profile/${c.steam}" target="_blank" rel="noopener">Statlocker</a>` : ''}
-        ${c.host ? `<a class="chip" href="#/${esc(c.login)}">страница стримера</a>` : ''}</div></div></div>
-    <div class="grid2"><section class="card"><header><h2>Ранг</h2></header><div class="body" style="display:grid;gap:14px">
-      <div class="rankrow">${badgeImg(c.badge, 'l')}<div class="t"><b>${esc(badgeName(c.badge))}</b>
-      <span class="dim">${{ game: 'ранг из игры', manual: 'ранг со слов', none: 'ранга пока нет' }[c.src] || ''}${c.pts != null ? ' · сила ' + fmt(c.pts) : ''}</span></div></div>
-      ${statsHtml(c.stats) || '<p class="dim">Steam не привязан: статистики нет.</p>'}</div></section>
-    <section class="card"><header><h2>Кастомки на сайте</h2></header><div class="body"><div class="kv">
-      <div><b>${c.games || 0}</b><span>сыграно</span></div><div><b>${c.wins || 0}</b><span>побед</span></div></div>
-      ${c.mains.length ? `<div class="row" style="margin-top:14px"><span class="dim">Мейны:</span>${c.mains.map((h) => heroImg(h, 'm')).join('')}</div>` : ''}</div></section></div>`;
+        ${c.host ? `<a class="chip" href="#/${esc(c.login)}">страница стримера</a>` : ''}
+        ${c.games ? `<span class="chip">${c.games} ${plural(c.games, 'кастомка', 'кастомки', 'кастомок')} на сайте, побед ${c.wins}</span>` : ''}</div></div></div>
+    ${profileBlocks(c, c.more)}`;
 }
 
 // ---------------------------------------------------------------- страница стримера

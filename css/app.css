@@ -284,6 +284,38 @@ select.input { appearance: none; padding-right: 30px;
 .mrow .w.a { color: var(--amber-hi); }
 .mrow .w.b { color: var(--sapph-hi); }
 
+.pstack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; margin-bottom: 30px; }
+.sech { margin: 0 0 12px; }
+.prog { height: 6px; border-radius: 999px; background: var(--card3); overflow: hidden; }
+.prog i { display: block; height: 100%; min-width: 2px; background: #fff; border-radius: 999px; }
+svg.radar { display: block; width: 100%; max-width: 520px; height: auto; margin: 0 auto; }
+svg.hist { display: block; width: 100%; height: auto; }
+.wl { display: flex; gap: 3px; flex-wrap: wrap; }
+.wl i { width: 14px; height: 22px; border-radius: 3px; background: var(--bad); opacity: .9; }
+.wl i.w { background: var(--ok); }
+.tblwrap { overflow-x: auto; padding-top: 4px !important; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tbl th { text-align: left; font-weight: 500; font-size: 12px; color: var(--mute); padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.tbl td { padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.tbl tbody tr:last-child td { border-bottom: 0; }
+.tbl th:first-child, .tbl td:first-child { padding-left: 0; }
+.tbl th:last-child, .tbl td:last-child { padding-right: 0; }
+.tbl .hn { display: flex; align-items: center; gap: 10px; }
+.tbl .hn small { display: block; color: var(--mute); font-size: 11.5px; }
+.tbl a:hover .hn > span { text-decoration: underline; text-underline-offset: 3px; }
+.tbl .res { font-weight: 500; }
+.tbl tr.won .res, .tbl .up { color: var(--ok); }
+.tbl tr.lost .res, .tbl .down { color: var(--bad); }
+.tbl .when { font-size: 13px; text-align: right; }
+.grade { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; font: 700 13px/1 var(--mono); border: 1px solid var(--line2); color: var(--dim); }
+.grade.gS { background: #fff; color: #000; border-color: #fff; }
+.grade.gA { color: var(--ok); border-color: rgba(92, 201, 122, .5); }
+.grade.gB { color: var(--text); border-color: #6a6a6a; }
+.grade.gC { color: var(--amber-hi); border-color: rgba(212, 134, 11, .5); }
+.grade.gD { color: #e9a36b; border-color: rgba(233, 163, 107, .4); }
+.grade.gF { color: var(--bad); border-color: rgba(224, 87, 79, .5); }
+.grade.none { border-style: dashed; color: var(--mute); }
+
 /* ---------- окна и уведомления */
 .modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, .66); overflow: auto; }
 .sheet { width: 100%; max-width: 460px; background: var(--card); border: 1px solid var(--line2); border-radius: 16px; box-shadow: 0 24px 80px rgba(0, 0, 0, .6);
