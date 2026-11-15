@@ -1,10 +1,10 @@
 // Подробная статистика игрока: ранг и сила, стиль игры, история ранга, форма, герои, последние матчи.
 // Цифры считает сервер по открытым данным deadlock-api (server/stats.py); здесь только отрисовка.
-import { esc, heroImg, heroName, badgeImg, badgeName, fmt, plural } from './ui.js?v=20261116003854';
+import { esc, heroImg, heroName, badgeImg, badgeName, fmt, plural } from './ui.js?v=20261116020306';
 
 const AXES = [['dmg', 'Урон'], ['farm', 'Фарм'], ['obj', 'Объекты'], ['sup', 'Поддержка'], ['tank', 'Стойкость'], ['surv', 'Выживаемость']];
 const MODE = { r: 'рейтинг', u: 'обычный', b: 'Street Brawl', c: 'кастомка', o: '' };
-const SRC = { game: 'ранг из игры', manual: 'ранг со слов', none: 'ранга пока нет', host: 'ранг поставил стример' };
+const SRC = { game: 'ранг из игры', manual: 'ранг со слов', none: 'ранга пока нет', host: 'ранг поставил ведущий' };
 
 export function grade(score) {
   if (score == null) return '';
@@ -79,7 +79,7 @@ function rankCard(c, m) {
     parts.push('ранг ' + fmt(m.points));
     if (m.form) parts.push('форма ' + signed(m.form));
     if (m.perf) parts.push('игра ' + signed(m.perf));
-    if (m.adj) parts.push('кастомки ' + signed(m.adj));
+    if (m.adj) parts.push('игры на сайте ' + signed(m.adj));
   }
   const pr = m && m.prog;
   const bar = pr ? `<div class="prog"><i style="width:${Math.round((100 * pr.have) / pr.need)}%"></i></div>
