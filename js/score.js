@@ -1,6 +1,6 @@
 // Таблица матча: живая, пока игра идёт, и итоговая после неё.
 // Одна и та же на странице лобби, в слое для OBS и в прошедших играх на странице ведущего.
-import { esc, heroImg, heroName, fmt, plural, clock, dateRu, modal, head } from './ui.js?v=20261116041808';
+import { esc, heroImg, heroName, fmt, plural, clock, dateRu, modal, head } from './ui.js?v=20261116041956';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 // колонки с числами; opt — на телефоне прячутся
@@ -19,7 +19,9 @@ export function scoreHtml(t, o) {
   const row = (r) => {
     const c = r.uid && o.card ? o.card(r.uid) : null;
     const name = (c && c.name) || r.name || 'Игрок';
-    const sub = r.hero ? `${esc(heroName(r.hero))}${r.lvl ? ` · ${r.lvl} ур.` : ''}` : 'выбирает героя';
+    // уровень не показываем: в трансляции и в итогах матча это разные числа (в трансляции рос до 72, в итогах у всех 36),
+    // а какое из них видно в игре — не сверено
+    const sub = r.hero ? esc(heroName(r.hero)) : 'выбирает героя';
     const cells = COLS.map(([k, , cls]) => `<span class="sc ${cls || ''} ${r[k] && r[k] === max[k] ? 'best' : ''}"><b>${fmt(r[k] || 0)}</b><i style="width:${Math.round(100 * (r[k] || 0) / max[k])}%"></i></span>`).join('');
     return `<div class="srow ${r.team} ${r.dead && t.live ? 'dead' : ''} ${r.uid && r.uid === o.me ? 'mine' : ''}"${r.uid ? ` data-uid="${esc(r.uid)}"` : ''}>
       <span class="sp">${heroImg(r.hero, 'm')}<span class="who"><b>${esc(name)}${r.mvp ? `<span class="tag mvp m${r.mvp}" title="${r.mvp === 1 ? 'Лучший игрок матча — так отметила сама игра' : `${r.mvp}-е место среди лучших игроков матча`}">${r.mvp === 1 ? 'MVP' : 'топ-' + r.mvp}</span>` : ''}</b><span class="sub">${sub}</span></span></span>
