@@ -1,9 +1,9 @@
 // Профиль игрока — «досье»: сцена с главным героем игрока и его цифрами, ниже стиль игры, путь по рангам, форма,
 // герои, кастомки на сайте и последние матчи. Цифры считает сервер по открытым данным deadlock-api (server/stats.py);
 // здесь только вид. Картина на сцене — фон главного героя из самой игры (site/assets/herobg, см. tools/fetch_hero_art.py).
-import { meta } from './api.js?v=20261116072020';
-import { openGame } from './score.js?v=20261116072020';
-import { esc, ava, heroImg, heroName, badgeImg, badgeName, fmt, plural, clock, dateRu } from './ui.js?v=20261116072020';
+import { meta } from './api.js?v=20261116072653';
+import { openGame } from './score.js?v=20261116072653';
+import { esc, ava, heroImg, heroName, badgeImg, badgeName, fmt, plural, clock, dateRu } from './ui.js?v=20261116072653';
 
 const AXES = [['dmg', 'Урон'], ['farm', 'Фарм'], ['obj', 'Объекты'], ['sup', 'Поддержка'], ['tank', 'Стойкость'], ['surv', 'Выживаемость']];
 const MODE = { r: 'рейтинг', u: 'обычный', b: 'Street Brawl', c: 'кастомка', o: '' };
@@ -197,7 +197,7 @@ function formSec(m) {
   const longest = (win) => runs.filter((r) => r.win === win && r.len >= 3).sort((p, q) => q.len - p.len || q.from - p.from)[0];
   const cur = runs[runs.length - 1];
   const now = cur.len > 1 ? `${cur.len} ${cur.win ? plural(cur.len, 'победа', 'победы', 'побед') : plural(cur.len, 'поражение', 'поражения', 'поражений')} подряд`
-    : cur.win ? 'последний матч выигран' : 'последний матч проигран';
+    : cur.win ? 'последний выигран' : 'последний проигран';
   // высоты: от нуля до и после каждого матча
   let lvl = 0;
   const lv = seq.map((x) => { lvl += x[1] ? 1 : -1; return lvl; });

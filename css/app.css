@@ -877,7 +877,7 @@ svg.hist .hline { filter: drop-shadow(0 0 10px var(--hc)); stroke-dasharray: 320
 .fm-big { font: 800 60px/.95 var(--font); letter-spacing: -.05em; white-space: nowrap; }
 .fm-big i { margin: 0 3px; font-style: normal; font-weight: 300; color: var(--mute); }
 .fm-sum > span { font-size: 13.5px; color: var(--dim); }
-.fm-now { margin-top: 12px; padding: 5px 11px 6px; border-radius: 99px; font: 600 12.5px/1.2 var(--font); font-style: normal; }
+.fm-now { margin-top: 12px; padding: 5px 11px 6px; border-radius: 99px; font: 600 12.5px/1.2 var(--font); font-style: normal; white-space: nowrap; }
 .fm-now.w { color: #9df0b8; background: rgba(111, 214, 149, .13); }
 .fm-now.l { color: #f1a39d; background: rgba(224, 87, 79, .14); }
 .fm-scroll { min-width: 0; overflow-x: auto; overflow-y: hidden; direction: rtl; scrollbar-width: none; }
