@@ -1,8 +1,9 @@
 // Профиль игрока — «досье»: сцена с главным героем игрока и его цифрами, ниже стиль игры, путь по рангам, форма,
-// герои, последние матчи и игры на сайте. Цифры считает сервер по открытым данным deadlock-api (server/stats.py);
+// герои, кастомки на сайте и последние матчи. Цифры считает сервер по открытым данным deadlock-api (server/stats.py);
 // здесь только вид. Картина на сцене — фон главного героя из самой игры (site/assets/herobg, см. tools/fetch_hero_art.py).
-import { meta } from './api.js?v=20261116053034';
-import { esc, ava, heroImg, heroName, badgeImg, badgeName, fmt, plural, clock, dateRu } from './ui.js?v=20261116053034';
+import { meta } from './api.js?v=20261116072020';
+import { openGame } from './score.js?v=20261116072020';
+import { esc, ava, heroImg, heroName, badgeImg, badgeName, fmt, plural, clock, dateRu } from './ui.js?v=20261116072020';
 
 const AXES = [['dmg', 'Урон'], ['farm', 'Фарм'], ['obj', 'Объекты'], ['sup', 'Поддержка'], ['tank', 'Стойкость'], ['surv', 'Выживаемость']];
 const MODE = { r: 'рейтинг', u: 'обычный', b: 'Street Brawl', c: 'кастомка', o: '' };
@@ -25,6 +26,7 @@ const hue = (id) => hero(id).color || '#8d93a0';
 
 function ago(ts) {
   const d = Date.now() / 1000 - ts;
+  if (ts % 86400 === 0 && d < 86400) return d < 0 ? 'сегодня' : 'вчера или сегодня';     // у скрытого профиля время округлено до дня
   if (d < 3600) return Math.max(1, Math.round(d / 60)) + ' мин назад';
   if (d < 86400) return Math.round(d / 3600) + ' ч назад';
   const days = Math.round(d / 86400);
@@ -35,12 +37,26 @@ function ago(ts) {
 
 // ---------------------------------------------------------------- сцена
 // who: { name, avatar, chips (готовая разметка), action (кнопка справа сверху) }
-function stage(c, m, who) {
-  const sig = m && m.heroes && m.heroes.length ? m.heroes[0] : null;          // [герой, матчи, победы, KDA, душ/мин, урон/мин, оценка]
+// Матчей из игры нет (Steam не привязан или в базе игры пусто), а кастомки на сайте есть — сцена берёт героя и цифры
+// из них: иначе у такого игрока вместо сцены был ряд нулей.
+function stage(c, m, who, played) {
+  const cu = played && played.sum;
+  let sig = m && m.heroes && m.heroes.length ? m.heroes[0] : null;            // [герой, матчи, победы, KDA, душ/мин, урон/мин, оценка]
+  const own = !!sig;
+  if (!sig && cu && cu.heroes && cu.heroes.length) sig = cu.heroes[0];       // [герой, игр на сайте, побед]
   const h = sig ? hero(sig[0]) : {};
   const s = c.stats;
   const nums = [];
-  if (s) {
+  if ((!s || !s.matches) && cu) {
+    nums.push([big(cu.g), plural(cu.g, 'игра на сайте', 'игры на сайте', 'игр на сайте')]);
+    nums.push([Math.round((100 * cu.w) / cu.g) + '%', `побед · ${cu.w}–${cu.g - cu.w}`]);
+    if (cu.tg) {
+      nums.push([dec((cu.k + cu.a) / Math.max(1, cu.d), 2), `KDA · ${dec(cu.k / cu.tg)} / ${dec(cu.d / cu.tg)} / ${dec(cu.a / cu.tg)}`]);
+      nums.push([big(Math.round(cu.nw / cu.tg)), 'душ за игру']);
+      nums.push([big(Math.round(cu.dmg / cu.tg)), 'урона за игру']);
+    }
+    nums.push([cu.place, `место из ${cu.of} на сайте`]);
+  } else if (s && s.matches) {
     nums.push([big(s.matches), 'матчей']);
     nums.push([s.wr == null ? '—' : s.wr + '%', m && m.wins != null ? `побед · ${fmt(m.wins)}–${fmt(s.matches - m.wins)}` : 'побед']);
     nums.push([dec(s.kda, 2), m && m.ka ? `KDA · ${dec(m.ka[0])} / ${dec(m.ka[1])} / ${dec(m.ka[2])}` : 'KDA']);
@@ -60,7 +76,7 @@ function stage(c, m, who) {
   const bg = sig ? `<div class="pf-bg" style="background-image:url(assets/herobg/${sig[0]}.webp)"></div>` : '';
   const bust = h.card ? `<img class="pf-bust" src="${esc(h.card)}" alt="" decoding="async">` : '';
   const signature = sig ? `<div class="pf-sig">${h.logo ? `<img src="${esc(h.logo)}" alt="${esc(heroName(sig[0]))}">` : `<b>${esc(heroName(sig[0]))}</b>`}
-      <span>главный герой · ${fmt(sig[1])} ${plural(sig[1], 'матч', 'матча', 'матчей')} · ${sig[1] ? Math.round((100 * sig[2]) / sig[1]) : 0}% побед</span></div>` : '';
+      <span>${own ? 'главный герой' : 'главный герой в кастомках'} · ${fmt(sig[1])} ${own ? plural(sig[1], 'матч', 'матча', 'матчей') : plural(sig[1], 'игра', 'игры', 'игр')} · ${sig[1] ? Math.round((100 * sig[2]) / sig[1]) : 0}% побед</span></div>` : '';
   return `<section class="pf-stage ${sig ? '' : 'bare'}">${bg}<div class="pf-grain"></div>${who.action ? `<div class="pf-act">${who.action}</div>` : ''}
     <div class="pf-top">${bust}<div class="pf-id">
       <div class="pf-who">${ava(who, 'm')}<div class="pf-chips">${who.chips || ''}</div></div>
@@ -164,20 +180,68 @@ function rankSec(m, color) {
     <div class="pf-panel pf-hist">${histSvg(m.hist, color)}${histSvg(m.hist, color, true)}</div></section>`;
 }
 
-// ---------------------------------------------------------------- форма: последние матчи кадрами киноплёнки
+// ---------------------------------------------------------------- форма: последние матчи волной
+// Каждый матч — портрет героя на своей высоте: победа поднимает на ступень, поражение опускает. Серии видны как
+// подъёмы и спуски, а самые длинные подсвечены. m.fm — те же 30 матчей по одному: [герой, победа, K, D, A, оценка, когда].
 function formSec(m) {
-  if (!m.wl) return '';
-  const st = m.streak;
-  const now = st > 1 ? `серия из ${st} ${plural(st, 'победы', 'побед', 'побед')}` : st < -1 ? `серия из ${-st} ${plural(-st, 'поражения', 'поражений', 'поражений')}`
-    : st === 1 ? 'последний матч выигран' : 'последний матч проигран';
-  const seq = m.wl.split('').reverse();               // старые слева, новые справа
-  const w = seq.filter((x) => x === 'W').length;
-  return `<section class="pf-sec"><header><h2>Форма</h2><span>последние ${seq.length} ${plural(seq.length, 'матч', 'матча', 'матчей')}, новые справа · сейчас ${now}</span></header>
-    <div class="pf-panel pf-form"><div class="film" role="img" aria-label="${w} побед и ${seq.length - w} поражений">
-        <div class="frames">${seq.map((x, i) => `<i class="${x === 'W' ? 'w' : 'l'} ${i === seq.length - 1 ? 'last' : ''}" title="${x === 'W' ? 'победа' : 'поражение'}"></i>`).join('')}</div></div>
-      <div class="pf-four"><div><b>${w}–${seq.length - w}</b><span>побед и поражений</span></div>
-        <div><b>${m.m30 ? Math.round((100 * m.w30) / m.m30) + '%' : '—'}</b><span>побед за 30 дней · ${fmt(m.m30 || 0)} ${plural(m.m30 || 0, 'матч', 'матча', 'матчей')}</span></div>
-        <div><b>${m.best}</b><span>лучшая серия побед</span></div><div><b>${m.worst}</b><span>худшая серия поражений</span></div></div></div></section>`;
+  const src = m.fm && m.fm.length ? m.fm : (m.wl || '').split('').map((x) => [0, x === 'W' ? 1 : 0, null, null, null, null, 0]);
+  if (!src.length) return '';
+  const seq = src.slice(0, 30).reverse();             // старые слева, новые справа
+  const n = seq.length;
+  const wins = seq.filter((x) => x[1]).length;
+  const runs = [];
+  seq.forEach((x, i) => {
+    const last = runs[runs.length - 1];
+    if (last && last.win === !!x[1]) last.len += 1; else runs.push({ from: i, len: 1, win: !!x[1] });
+  });
+  const longest = (win) => runs.filter((r) => r.win === win && r.len >= 3).sort((p, q) => q.len - p.len || q.from - p.from)[0];
+  const cur = runs[runs.length - 1];
+  const now = cur.len > 1 ? `${cur.len} ${cur.win ? plural(cur.len, 'победа', 'победы', 'побед') : plural(cur.len, 'поражение', 'поражения', 'поражений')} подряд`
+    : cur.win ? 'последний матч выигран' : 'последний матч проигран';
+  // высоты: от нуля до и после каждого матча
+  let lvl = 0;
+  const lv = seq.map((x) => { lvl += x[1] ? 1 : -1; return lvl; });
+  const lo = Math.min(0, ...lv);
+  const hi = Math.max(0, ...lv);
+  const H = 172, S = 30, PAD = 24;
+  const room = H - 2 * PAD - S;
+  const step = Math.min(18, room / Math.max(1, hi - lo));
+  const top = (l) => PAD + (room - (hi - lo) * step) / 2 + (hi - l) * step;
+  const line = lv.map((l, i) => `${i ? 'L' : 'M'}${i + 0.5} ${(top(l) + S / 2).toFixed(1)}`).join('');
+  const zero = (top(0) + S / 2).toFixed(1);
+  const band = (r) => (r ? `<div class="fm-band ${r.win ? 'w' : 'l'} ${r.from < 2 ? 'left' : r.from + r.len > n - 2 ? 'right' : ''}" style="left:${(100 * r.from / n).toFixed(2)}%;width:${(100 * r.len / n).toFixed(2)}%"><span>${r.len} ${r.win ? plural(r.len, 'победа', 'победы', 'побед') : plural(r.len, 'поражение', 'поражения', 'поражений')} подряд</span></div>` : '');
+  const cols = seq.map((x, i) => {
+    const [hid, win, k, d, a, score, at] = x;
+    const tip = [hid ? heroName(hid) : '', win ? 'победа' : 'поражение', k == null ? '' : `${k}/${d}/${a}`, score == null ? '' : `оценка ${grade(score)}`, at ? ago(at) : ''].filter(Boolean).join(' · ');
+    const pic = hid && hero(hid).icon ? `<img src="${esc(hero(hid).icon)}" alt="" loading="lazy">` : '';
+    return `<div class="fm-c ${win ? 'w' : 'l'} ${i === n - 1 ? 'last' : ''}"><i style="top:${top(lv[i]).toFixed(1)}px" title="${esc(tip)}">${pic}</i></div>`;
+  }).join('');
+  // что стоит за этими матчами: на ком играл, как играл
+  const by = new Map();
+  let K = 0, D = 0, A = 0, scored = 0, sum = 0;
+  for (const x of seq) {
+    if (x[0]) { const h = by.get(x[0]) || [0, 0]; h[0] += 1; h[1] += x[1]; by.set(x[0], h); }
+    if (x[2] != null) { K += x[2]; D += x[3]; A += x[4]; }
+    if (x[5] != null) { scored += 1; sum += x[5]; }
+  }
+  const main = Array.from(by).sort((p, q) => q[1][0] - p[1][0]).slice(0, 4);
+  const facts = [];
+  if (main.length) facts.push(`<div class="fm-on"><span>играл на</span>${main.map(([id, v]) => `<em title="${esc(heroName(id))}: побед ${v[1]}, поражений ${v[0] - v[1]}">${heroImg(id, 'm')}<b>${v[1]}–${v[0] - v[1]}</b></em>`).join('')}</div>`);
+  if (K + D + A) facts.push(`<div><b>${dec((K + A) / Math.max(1, D), 2)}</b><span>KDA за эти матчи</span></div>`);
+  if (scored) facts.push(`<div><b>${grade(sum / scored)}</b><span>средняя оценка · ${Math.round(sum / scored)} из 100</span></div>`);
+  if (m.m30) facts.push(`<div><b>${Math.round((100 * m.w30) / m.m30)}%</b><span>побед за 30 дней · ${fmt(m.m30)} ${plural(m.m30, 'матч', 'матча', 'матчей')}</span></div>`);
+  const first = seq[0][6];
+  return `<section class="pf-sec"><header><h2>Форма</h2><span>последние ${n} ${plural(n, 'матч', 'матча', 'матчей')} · победа поднимает на ступень, поражение опускает</span></header>
+    <div class="pf-panel fm"><div class="fm-sum"><b class="fm-big">${wins}<i>–</i>${n - wins}</b><span>побед и поражений</span>
+        <em class="fm-now ${cur.win ? 'w' : 'l'}">${now}</em></div>
+      <div class="fm-scroll"><div class="fm-wave" style="--n:${n}" role="img" aria-label="${wins} ${plural(wins, 'победа', 'победы', 'побед')} и ${n - wins} ${plural(n - wins, 'поражение', 'поражения', 'поражений')}, сейчас ${now}">
+        ${band(longest(true))}${band(longest(false))}
+        <svg viewBox="0 0 ${n} ${H}" preserveAspectRatio="none" aria-hidden="true">
+          <defs><linearGradient id="fmg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--hc)" stop-opacity=".2"/><stop offset="1" stop-color="var(--hc)" stop-opacity="0"/></linearGradient></defs>
+          <path d="${line}L${n - 0.5} ${H}L0.5 ${H}Z" fill="url(#fmg)"/><line x1="0" x2="${n}" y1="${zero}" y2="${zero}" class="fm-zero"/><path d="${line}" class="fm-line"/></svg>
+        <div class="fm-cols">${cols}</div></div>
+        <div class="fm-axis"><span>${first ? ago(first) : 'раньше'}</span><span>сейчас</span></div></div>
+      ${facts.length ? `<div class="fm-foot">${facts.join('')}</div>` : ''}</div></section>`;
 }
 
 // ---------------------------------------------------------------- герои: трое главных — афишами, остальные — списком
@@ -223,62 +287,102 @@ function highlights(recent) {
   }).join('')}</div>`;
 }
 
+const dayKey = (ts) => { const d = new Date(ts * 1000); return d.getFullYear() * 10000 + d.getMonth() * 100 + d.getDate(); };
+function dayTitle(ts) {
+  const k = dayKey(ts);
+  if (k === dayKey(Date.now() / 1000)) return 'Сегодня';
+  if (k === dayKey(Date.now() / 1000 - 86400)) return 'Вчера';
+  return dateRu(ts);
+}
+
+// Матчи идут по дням: у дня — счёт побед и поражений и сколько очков ранга он принёс. Сразу видно восемь матчей,
+// остальные открываются кнопкой: длинная простыня одинаковых строк ничего не добавляла.
+const SHOWN = 8;
 function matchesSec(m) {
   if (!m.recent || !m.recent.length) return '';
-  const rows = m.recent.map((r) => {
+  const days = [];
+  m.recent.forEach((r, i) => {
+    const last = days[days.length - 1];
+    if (last && last.key === dayKey(r[8])) last.rows.push([r, i]); else days.push({ key: dayKey(r[8]), at: r[8], rows: [[r, i]] });
+  });
+  const one = ([r, i]) => {
     const [id, hid, win, k, d, a, nw, durS, at, mode, delta, score] = r;
     const inner = `${heroImg(hid, 'm')}<span class="mwho"><b>${esc(heroName(hid))}</b><small>${MODE[mode] || ''}</small></span>
       <b class="mres">${win ? 'Победа' : 'Поражение'}</b><span class="mkda">${k}<em>/</em>${d}<em>/</em>${a}</span>
       <span class="num">${fmt(Math.round(nw / 1000))}k</span><span class="num opt">${mmss(durS)}</span>
-      <span class="num ${delta > 0 ? 'up' : delta < 0 ? 'down' : ''}">${delta == null ? '' : signed(delta)}</span>${stamp(score)}<span class="mago">${ago(at)}</span>`;
-    return id ? `<a class="mrow2 ${win ? 'w' : 'l'}" href="https://statlocker.gg/match/${id}" target="_blank" rel="noopener" title="Матч на Statlocker">${inner}</a>`
-      : `<div class="mrow2 ${win ? 'w' : 'l'}">${inner}</div>`;
+      <span class="num ${delta > 0 ? 'up' : delta < 0 ? 'down' : ''}">${delta == null ? '' : signed(delta)}</span>${stamp(score)}<span class="mago">${at % 86400 ? new Date(at * 1000).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : ''}</span>`;
+    const cls = `mrow2 ${win ? 'w' : 'l'} ${i >= SHOWN ? 'late' : ''}`;
+    return id ? `<a class="${cls}" href="https://statlocker.gg/match/${id}" target="_blank" rel="noopener" title="Матч на Statlocker">${inner}</a>`
+      : `<div class="${cls}">${inner}</div>`;
+  };
+  const body = days.map((day) => {
+    const w = day.rows.filter(([r]) => r[2]).length;
+    const l = day.rows.length - w;
+    const pts = day.rows.reduce((sum, [r]) => sum + (r[10] || 0), 0);
+    const ranked = day.rows.some(([r]) => r[10] != null);
+    return `<div class="mday ${day.rows[0][1] >= SHOWN ? 'late' : ''}"><b>${dayTitle(day.at)}</b><span>${w ? `${w} ${plural(w, 'победа', 'победы', 'побед')}` : ''}${w && l ? ' · ' : ''}${l ? `${l} ${plural(l, 'поражение', 'поражения', 'поражений')}` : ''}</span>
+      ${ranked ? `<em class="${pts > 0 ? 'up' : pts < 0 ? 'down' : ''}">${signed(pts)} ${plural(Math.abs(pts), 'очко', 'очка', 'очков')} ранга</em>` : ''}</div>${day.rows.map(one).join('')}`;
   }).join('');
+  const rest = m.recent.length - SHOWN;
   return `<section class="pf-sec"><header><h2>Последние матчи</h2><span>оценка — по KDA и душам в минуту</span></header>
-    ${highlights(m.recent)}<div class="pf-panel pf-list">${rows}</div></section>`;
+    ${highlights(m.recent)}<div class="pf-panel pf-list mlist ${rest > 0 ? 'clip' : ''}">${body}
+      ${rest > 0 ? `<button class="mmore" data-pf="more">Показать ещё ${rest}</button>` : ''}</div></section>`;
 }
 
-// ---------------------------------------------------------------- игры на этом сайте
-function siteSec(m) {
-  if (!m.site || !m.site.length) return '';
-  const rows = m.site.map((g, i) => {
+// ---------------------------------------------------------------- кастомки: игры через лобби на этом сайте
+// pl — { sum: сводка игрока (server/customs.py: brief) | null, games: последние игры, adj: поправка силы }
+function customsSec(pl) {
+  const s = pl && pl.sum;
+  if (!s) return '';
+  const who = (x) => (x.login ? `<a class="plink" href="#/u/${esc(x.login)}">${esc(x.name)}</a>` : esc(x.name));
+  const nums = [[`${s.w}–${s.g - s.w}`, `побед и поражений · ${Math.round((100 * s.w) / s.g)}%`]];
+  if (s.tg) {
+    nums.push([`${dec(s.k / s.tg)} / ${dec(s.d / s.tg)} / ${dec(s.a / s.tg)}`, 'K / D / A за игру']);
+    nums.push([big(Math.round(s.dmg / s.tg)), 'урона за игру']);
+  }
+  nums.push([`${s.place}<small> из ${s.of}</small>`, 'место среди игроков сайта']);
+  if (s.mvp) nums.push([s.mvp, plural(s.mvp, 'раз лучший игрок матча', 'раза лучший игрок матча', 'раз лучший игрок матча')]);
+  if (pl.adj) nums.push([signed(pl.adj), 'поправка силы за игры на сайте']);
+  const rels = [];
+  if (s.vic) rels.push(`<div class="cu-rel"><span>чаще всех убивал</span><b>${who(s.vic)}</b><em>${s.vic.n} ${plural(s.vic.n, 'раз', 'раза', 'раз')}</em></div>`);
+  if (s.nem) rels.push(`<div class="cu-rel"><span>чаще всех погибал от</span><b>${who(s.nem)}</b><em>${s.nem.n} ${plural(s.nem.n, 'раз', 'раза', 'раз')}</em></div>`);
+  if (s.mate) rels.push(`<div class="cu-rel"><span>чаще всех в одной команде</span><b>${who(s.mate)}</b><em>${s.mate.n} ${plural(s.mate.n, 'игра', 'игры', 'игр')}, побед ${s.mate.w}</em></div>`);
+  const heroes = (s.heroes || []).map((h) => `<em title="${esc(heroName(h[0]))}: побед ${h[2]}, поражений ${h[1] - h[2]}">${heroImg(h[0], 'm')}<b>${h[2]}–${h[1] - h[2]}</b></em>`).join('');
+  const rows = (pl.games || []).map((g, i) => {
     const me = g.me;
-    return `<button class="srow2 ${g.won ? 'w' : 'l'}" data-site="${i}">${me && me.hero ? heroImg(me.hero, 'm') : '<span class="hero m"></span>'}
-      <span class="mwho"><b>${g.won ? 'Победа' : 'Поражение'} за «${TEAM[g.team]}»</b><small>${esc(g.title || '')}</small></span>
+    const hid = (me && me.hero) || g.hero;
+    return `<button class="srow2 ${g.won ? 'w' : 'l'}" data-site="${i}">${hid ? heroImg(hid, 'm') : '<span class="hero m"></span>'}
+      <span class="mwho"><b>${g.won ? 'Победа' : 'Поражение'} за «${TEAM[g.team]}»</b><small>${hid ? esc(heroName(hid)) + ' · ' : ''}${esc(g.title || '')}</small></span>
       ${me ? `<span class="mkda">${me.k}<em>/</em>${me.d}<em>/</em>${me.a}</span><span class="num opt">${fmt(Math.round((me.nw || 0) / 1000))}k душ</span>` : '<span></span><span class="opt"></span>'}
       <span class="num">${g.kills ? `${g.kills[0]} : ${g.kills[1]}` : ''}</span>
       <span class="mago">${dateRu(g.at)}${g.duration ? ` · ${clock(g.duration)}` : ''}</span></button>`;
   }).join('');
-  return `<section class="pf-sec"><header><h2>Игры на сайте</h2><span>кастомки, сыгранные через лобби; нажми — откроется таблица матча</span></header>
-    <div class="pf-panel pf-list">${rows}</div></section>`;
+  return `<section class="pf-sec"><header><h2>Кастомки</h2><span>${s.g} ${plural(s.g, 'игра', 'игры', 'игр')} через лобби на этом сайте · <a class="plink on" href="#/stats">вся статистика кастомок</a></span></header>
+    <div class="pf-panel cu"><div class="cu-nums">${nums.map((x) => `<div><b>${x[0]}</b><span>${x[1]}</span></div>`).join('')}</div>
+      ${rels.length || heroes ? `<div class="cu-more">${rels.join('')}${heroes ? `<div class="cu-rel cu-on"><span>играл на</span><div>${heroes}</div></div>` : ''}</div>` : ''}</div>
+    ${rows ? `<div class="pf-panel pf-list cu-list">${rows}</div>` : ''}</section>`;
 }
 
-// c — карточка игрока (badge, pts, src, stats), m — подробности (или null, если Steam не привязан), who — имя, аватар, ссылки
-export function profileBlocks(c, m, who) {
+// c — карточка игрока (badge, pts, src, stats), m — подробности (или null, если Steam не привязан), who — имя, аватар,
+// ссылки; played — его кастомки на сайте
+export function profileBlocks(c, m, who, played) {
   who = who || { name: '', avatar: '' };
-  const sig = m && m.heroes && m.heroes.length ? m.heroes[0][0] : null;
+  const cu = played && played.sum;
+  const sig = m && m.heroes && m.heroes.length ? m.heroes[0][0] : cu && cu.heroes && cu.heroes.length ? cu.heroes[0][0] : null;
   const color = sig ? hue(sig) : '#8d93a0';
-  if (!c.stats || !m) {
-    return `<div class="pf" style="--hc:${color}">${stage(c, null, who)}
-      <div class="pf-panel pf-empty">Steam не привязан: подробной статистики нет.</div></div>`;
+  if (!c.stats || !m || !c.stats.matches) {
+    const why = !c.stats || !m ? 'Статистики из игры нет: Steam не привязан.' : 'В базе игры матчей этого игрока пока нет: статистика появится, когда он сыграет.';
+    return `<div class="pf" style="--hc:${color}">${stage(c, c.stats && m ? m : null, who, played)}${customsSec(played)}
+      <div class="pf-panel pf-empty">${why}</div></div>`;
   }
-  return `<div class="pf" style="--hc:${color}">${stage(c, m, who)}${styleSec(m, color)}${rankSec(m, color)}${formSec(m)}${heroesSec(m)}${matchesSec(m)}${siteSec(m)}</div>`;
+  return `<div class="pf" style="--hc:${color}">${stage(c, m, who, played)}${styleSec(m, color)}${rankSec(m, color)}${formSec(m)}${heroesSec(m)}${customsSec(played)}${matchesSec(m)}</div>`;
 }
 
-// Глубина сцены: картина и герой чуть смещаются вслед за курсором. Возвращает функцию, которая это снимает.
-export function mountProfile(root) {
-  const st = root.querySelector('.pf-stage');
-  if (!st || !window.matchMedia || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return () => {};
-  let raf = 0;
-  const move = (e) => {
-    const r = st.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width - 0.5;
-    const y = (e.clientY - r.top) / r.height - 0.5;
-    cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(() => { st.style.setProperty('--px', x.toFixed(3)); st.style.setProperty('--py', y.toFixed(3)); });
-  };
-  const rest = () => { st.style.setProperty('--px', '0'); st.style.setProperty('--py', '0'); };
-  st.addEventListener('pointermove', move);
-  st.addEventListener('pointerleave', rest);
-  return () => { cancelAnimationFrame(raf); st.removeEventListener('pointermove', move); st.removeEventListener('pointerleave', rest); };
+// Нажатия внутри профиля. played — те же кастомки, что отданы в profileBlocks; me — uid зрителя. -> true, если нажатие разобрано.
+export function profileClick(e, played, me) {
+  const more = e.target.closest('[data-pf="more"]');
+  if (more) { more.closest('.mlist').classList.remove('clip'); more.remove(); return true; }
+  const sg = e.target.closest('[data-site]');
+  if (sg) { const g = ((played && played.games) || [])[+sg.dataset.site]; if (g) openGame(g, { me }); return true; }
+  return false;
 }

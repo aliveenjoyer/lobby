@@ -1,13 +1,14 @@
 // Лобби: маршруты, шапка, главная, профиль, страница ведущего.
-import { call, meta, loadMeta, session } from './api.js?v=20261116053034';
+import { call, meta, loadMeta, session } from './api.js?v=20261116072020';
 import {
-  $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, toast, oops, modal, head, confirmHold,
+  $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, toast, oops, modal, head, confirmHold, closeModal,
   ICON, dateRu,
-} from './ui.js?v=20261116053034';
-import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116053034';
-import { mountEvent } from './event.js?v=20261116053034';
-import { profileBlocks, mountProfile } from './profile.js?v=20261116053034';
-import { gameRow, openGame } from './score.js?v=20261116053034';
+} from './ui.js?v=20261116072020';
+import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261116072020';
+import { mountEvent } from './event.js?v=20261116072020';
+import { profileBlocks, profileClick } from './profile.js?v=20261116072020';
+import { gameRow, openGame } from './score.js?v=20261116072020';
+import { mountStats } from './stats.js?v=20261116072020';
 
 const view = $('#view');
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
@@ -27,9 +28,10 @@ function leave() {
 function top() {
   const me = user.me;
   const p = parts();
-  const nav = [`<a href="#/" class="${p.length ? '' : 'on'}">Все лобби</a>`];
+  const nav = [`<a href="#/" class="${p.length ? '' : 'on'}">Все лобби</a>`,
+    `<a href="#/stats" class="${p[0] === 'stats' ? 'on' : ''}">Статистика</a>`];
   if (me && me.can_host) nav.push(`<a href="#/${esc(me.login)}" class="${p[0] === me.login ? 'on' : ''}">Моё лобби</a>`);
-  if (me) nav.push(`<a href="#/me" class="${p[0] === 'me' ? 'on' : ''}">Мой профиль</a>`);
+  if (me) nav.push(`<a href="#/me" class="${p[0] === 'me' ? 'on' : ''}">Мой профиль${me.apps ? `<i class="cnt" title="Заявки ведущих ждут ответа">${me.apps}</i>` : ''}</a>`);
   $('#top').innerHTML = `<a class="brand" href="#/"><i></i><span>Лобби</span></a><nav>${nav.join('')}</nav><span class="sp"></span>
     ${me ? `<a class="me" href="#/me" title="Профиль">${ava(me, 's')}<span>${esc(me.name)}</span></a>`
     : `<button class="btn primary sm" id="top-login">${ICON.twitch}<span>Войти</span></button>`}`;
@@ -39,6 +41,7 @@ function top() {
 
 async function route() {
   leave();
+  closeModal();                 // окно прошлой страницы (таблица игры, карточка игрока) новой странице не нужно
   const my = ++seq;
   const p = parts();
   document.body.classList.toggle('obs', p[0] === 'obs');
@@ -48,6 +51,7 @@ async function route() {
   try {
     if (!p.length) await home(fresh);
     else if (p[0] === 'me') mePage();
+    else if (p[0] === 'stats') unmount = mountStats(view, p[1] ? p[1].toLowerCase() : '');
     else if (p[0] === 'c' && p[1]) unmount = mountEvent(view, p[1].toLowerCase());
     else if (p[0] === 'u' && p[1]) await userPage(p[1].toLowerCase(), fresh);
     else if (p[0] === 'obs' && p[1]) await hostPage(p[1].toLowerCase(), fresh, true);
@@ -73,11 +77,11 @@ async function home(fresh) {
     const prof = me ? `<section class="sec"><h2>Твой профиль</h2><a class="card evrow" href="#/me">${ava(me)}
       <span class="t"><b>${esc(me.name)}</b><span>${me.badge ? esc(badgeName(me.badge)) : me.steam ? 'в игре ранга пока нет' : 'без ранга'}${me.pts != null ? ' · сила ' + fmt(me.pts) : ''}${me.steam ? '' : ' · Steam не привязан'}</span></span>
       ${badgeImg(me.badge)}<span class="btn sm">Открыть</span></a></section>` : '';
-    const played = games.length ? `<section class="sec"><h2>Сыгранные игры</h2>
+    const played = games.length ? `<section class="sec"><h2>Сыгранные игры <a class="plink on sech-link" href="#/stats">вся статистика кастомок</a></h2>
       <div class="card"><div class="glist wide">${games.map((g, i) => gameRow(g, i, { host: true })).join('')}</div></div></section>` : '';
     view.innerHTML = `<section class="hello"><h1>Кастомки Deadlock со зрителями</h1>
       <p>Ведущий создаёт лобби и кидает ссылку в чат. Зрители записываются, два капитана набирают команды, потом драфт героев и код для входа в игру.</p>
-      ${btn.length ? `<div class="row">${btn.join('')}</div>` : ''}</section>
+      ${btn.length ? `<div class="row">${btn.join('')}</div>` : ''}${me && !me.can_host ? `<p class="ap-line">${applyLine(me)}</p>` : ''}</section>
       <section class="sec"><h2>Открытые лобби</h2><div class="list">${rows || '<div class="card empty">Сейчас открытых лобби нет. Когда ведущий создаст лобби, оно появится здесь.</div>'}</div></section>${played}${prof}
       <section class="sec"><h2>Как проходит игра</h2><ol class="flow">
         <li><b>Запись</b><span>Зрители заходят по ссылке и жмут «Записаться». Ранг и герои подтягиваются из Steam.</span></li>
@@ -102,12 +106,44 @@ async function home(fresh) {
     if (!b) return;
     if (b.dataset.go === 'login') login();
     if (b.dataset.go === 'steam') linkSteam();
+    if (b.dataset.go === 'apply') applyModal();
     if (b.dataset.go === 'create') {
       try { await call('/events', {}); location.hash = '#/' + user.me.login; } catch (err) { oops(err); }
     }
   };
   await load();
   timer = setInterval(() => load().catch(() => {}), 20000);
+}
+
+// ---------------------------------------------------------------- заявка: «хочу вести свои лобби»
+// Строка со статусом заявки: на главной и в профиле. me.apply — { state: new | ok | no, at, note, again } или null.
+function applyLine(me) {
+  const a = me.apply;
+  if (!a) return 'Стримишь и хочешь собирать свои кастомки? <button class="lnk" data-go="apply" data-p="apply">Подать заявку ведущего</button>';
+  if (a.state === 'new') return `<span class="chip ok">Заявка ведущего отправлена</span> Её смотрит администратор сайта. Ответ появится здесь.`;
+  if (a.state === 'no') {
+    const wait = a.again > Date.now() / 1000;
+    return `Заявку ведущего отклонили${a.note ? `: «${esc(a.note)}»` : ''}. ${wait ? `Подать снова можно с ${dateRu(a.again)}.` : '<button class="lnk" data-go="apply" data-p="apply">Подать ещё раз</button>'}`;
+  }
+  return 'Заявка одобрена: обнови страницу — появится кнопка «Создать лобби».';
+}
+
+function applyModal() {
+  const me = user.me;
+  if (!me) { login(); return; }
+  const m = modal(`${head('Заявка ведущего')}<div class="body">
+    <p class="dim" style="margin-bottom:14px">Ведущий создаёт свои лобби: кидает ссылку в чат, зрители записываются, сайт делит команды и сам создаёт игру. Заявку смотрит администратор сайта.</p>
+    <label class="field"><span>Пара слов о себе: где стримишь, сколько зрителей, какие кастомки хочешь вести</span>
+      <textarea class="input" id="ap-text" maxlength="600" rows="5" placeholder="Стримлю Deadlock по вечерам, онлайн человек 30. Хочу по выходным собирать кастомки со зрителями."></textarea></label>
+    <label class="field"><span>Ссылка на канал</span><input class="input" id="ap-link" maxlength="300" value="https://twitch.tv/${esc(me.login)}"></label></div>
+    <footer><button class="btn" data-close>Отмена</button><button class="btn primary" id="ap-send">Отправить заявку</button></footer>`);
+  $('#ap-send', m.el).addEventListener('click', async () => {
+    const text = $('#ap-text', m.el).value.trim();
+    const link = $('#ap-link', m.el).value.trim();
+    if (text.length < 20) { toast('Расскажи чуть подробнее: хотя бы пару предложений', true); return; }
+    if (link && !/^https?:\/\//.test(link)) { toast('Ссылка должна начинаться с https://', true); return; }
+    try { const d = await call('/apply', { text, link }); m.close(); setUser(d.me); toast('Заявка отправлена'); } catch (e) { oops(e); }
+  });
 }
 
 // ---------------------------------------------------------------- профиль
@@ -128,7 +164,7 @@ function mePage() {
   const who = { name: me.name, avatar: me.avatar, action: '<button class="btn" data-p="logout">Выйти</button>',
     chips: `<a class="chip" href="https://twitch.tv/${esc(me.login)}" target="_blank" rel="noopener">twitch.tv/${esc(me.login)}</a>
       ${me.steam ? `<a class="chip" href="https://statlocker.gg/profile/${me.steam}" target="_blank" rel="noopener">Statlocker</a><span class="chip ok">Steam привязан</span>` : ''}` };
-  view.innerHTML = `${profileBlocks({ badge: me.badge, pts: me.pts, src: me.src, stats: me.steam ? me.stats : null }, me.steam ? me.more : null, who)}
+  view.innerHTML = `${profileBlocks({ badge: me.badge, pts: me.pts, src: me.src, stats: me.steam ? me.stats : null }, me.steam ? me.more : null, who, me.played)}
     <h2 class="sech">Настройки профиля</h2>
     <div class="grid2">
       <section class="card"><header><h2>Steam и ранг</h2></header><div class="body" style="display:grid;gap:14px">
@@ -140,38 +176,66 @@ function mePage() {
           <div class="row"><button class="btn primary" data-p="steam">${ICON.steam}<span>Привязать Steam</span></button></div>`}
       </div></section>
       <div class="col">
-        <section class="card"><header><h2>Игры на сайте</h2></header><div class="body"><div class="kv">
-          <div><b>${me.games}</b><span>сыграно</span></div><div><b>${me.wins}</b><span>побед</span></div>
-          <div><b>${me.adj > 0 ? '+' : ''}${fmt(me.adj)}</b><span>поправка силы</span></div></div></div></section>
         ${me.admin ? `<section class="card"><header><h2>Кто может создавать лобби</h2></header>
           <div class="body" style="display:grid;gap:10px" id="adm-hosts"><span class="dim">Загружаю…</span></div></section>` : ''}
-        <section class="card"><header><h2>Удаление</h2></header><div class="body">
-          <p class="dim" style="margin-bottom:12px">Удаление стирает с сайта твой профиль, привязку Steam и статистику игр.</p>
-          <button class="btn danger" data-p="delete">Удалить профиль</button></div></section>
+        ${me.can_host ? '' : `<section class="card"><header><h2>Свои лобби</h2></header><div class="body">
+          <p class="ap-line in">${applyLine(me)}</p></div></section>`}
+        <section class="card"><header><h2>Аккаунт</h2></header><div class="body" style="display:grid;gap:14px">
+          <div class="ap-acc"><p class="dim">Если вход на сайт подтвердил кто-то чужой или ты заходил с чужого компьютера — выйди везде разом.</p>
+            <button class="btn" data-p="logout_all">Выйти на всех устройствах</button></div>
+          <div class="ap-acc"><p class="dim">Удаление стирает с сайта твой профиль, привязку Steam и статистику игр.</p>
+            <button class="btn danger" data-p="delete">Удалить профиль</button></div></div></section>
       </div></div>`;
   const save = async (path, body, ok) => {
     try { const d = await call(path, body); setUser(d.me); if (ok) toast(ok); } catch (e) { oops(e); }
   };
+  let apps = [];                // заявки ведущих (видит администратор сайта)
   const drawHosts = (d) => {
     const box = $('#adm-hosts');
     if (!box) return;
+    if (d.apps) apps = d.apps;
+    const hosts = d.hosts || d;
     const line = (l, right) => `<div class="row" style="justify-content:space-between"><span>${esc(l)}</span>${right}</div>`;
-    box.innerHTML = `<p class="dim">Эти люди видят кнопку «Создать лобби». Впиши логин Twitch — после входа на сайт человек сможет вести свои лобби.</p>
-      ${d.fixed.map((l) => line(l, '<span class="dim" style="font-size:13px">в настройках сервера</span>')).join('')}
-      ${d.extra.map((l) => line(l, `<button class="btn sm" data-p="host_del" data-login="${esc(l)}">Убрать</button>`)).join('')}
+    const wait = apps.filter((a) => a.state === 'new');
+    const done = apps.filter((a) => a.state !== 'new').slice(0, 5);
+    const one = (a) => `<div class="ap-item"><div class="ap-who">${ava(a, 's')}<a class="plink" href="#/u/${esc(a.login)}"><b>${esc(a.name)}</b></a>
+        <span class="dim">${dateRu(a.at)} · игр на сайте: ${a.games}${a.steam ? '' : ' · без Steam'}${a.gone ? ' · профиль удалён' : ''}</span></div>
+      <p>${esc(a.text)}</p>${a.link ? `<a class="plink on" href="${esc(a.link)}" target="_blank" rel="noopener nofollow">${esc(a.link)}</a>` : ''}
+      <div class="row"><button class="btn sm primary" data-p="app_ok" data-uid="${esc(a.uid)}">Одобрить</button><button class="btn sm" data-p="app_no" data-uid="${esc(a.uid)}">Отклонить</button></div></div>`;
+    box.innerHTML = `${wait.length ? `<div class="ap-list"><b>Заявки: ${wait.length}</b>${wait.map(one).join('')}</div>` : ''}
+      <p class="dim">Эти люди видят кнопку «Создать лобби». Впиши логин Twitch — после входа на сайт человек сможет вести свои лобби.${wait.length ? '' : ' Заявок сейчас нет.'}</p>
+      ${hosts.fixed.map((l) => line(l, '<span class="dim" style="font-size:13px">в настройках сервера</span>')).join('')}
+      ${hosts.extra.map((l) => line(l, `<button class="btn sm" data-p="host_del" data-login="${esc(l)}">Убрать</button>`)).join('')}
       <div class="pickers" style="grid-template-columns:1fr auto"><input class="input" id="adm-login" maxlength="30" placeholder="логин Twitch" autocomplete="off">
-      <button class="btn" data-p="host_add">Добавить</button></div>`;
+      <button class="btn" data-p="host_add">Добавить</button></div>
+      ${done.length ? `<div class="ap-done">${done.map((a) => `<span>${esc(a.name)} — ${a.state === 'ok' ? 'одобрено' : 'отклонено'}${a.note ? ': ' + esc(a.note) : ''}</span>`).join('')}</div>` : ''}`;
   };
-  if (me.admin) call('/admin/hosts').then(drawHosts).catch(oops);
-  if (unmount) unmount();
-  unmount = mountProfile(view);
+  if (me.admin) call('/admin/apps').then(drawHosts).catch(oops);
+  const decide = async (uid, ok, note) => {
+    try { drawHosts(await call('/admin/apps', { uid, ok, note: note || '' })); toast(ok ? 'Одобрено: человек может создавать лобби' : 'Заявка отклонена'); refreshMe().catch(() => {}); } catch (err) { oops(err); }
+  };
   view.onclick = async (e) => {
-    const sg = e.target.closest('[data-site]');
-    if (sg) { const g = ((me.more && me.more.site) || [])[+sg.dataset.site]; if (g) openGame(g); return; }
+    if (profileClick(e, me.played, me.id)) return;
     const b = e.target.closest('[data-p]');
     if (!b) return;
     const a = b.dataset.p;
     if (a === 'logout') { await logout(); location.hash = '#/'; }
+    if (a === 'apply') applyModal();
+    if (a === 'logout_all') {
+      const m = modal(`${head('Выйти на всех устройствах?')}<div class="body"><p class="dim">Сайт забудет вход на всех компьютерах и телефонах, и на этом тоже. Потом можно войти заново через Twitch.</p></div>
+        <footer><button class="btn" data-close>Отмена</button><button class="btn primary" id="la-go">Выйти везде</button></footer>`);
+      $('#la-go', m.el).addEventListener('click', async () => {
+        m.close();
+        try { await call('/auth/logout_all', {}); session.set(null); setUser(null); location.hash = '#/'; toast('Вход сброшен на всех устройствах'); } catch (err) { oops(err); }
+      });
+    }
+    if (a === 'app_ok') decide(b.dataset.uid, true);
+    if (a === 'app_no') {
+      const m = modal(`${head('Отклонить заявку?')}<div class="body"><label class="field"><span>Причина — человек увидит её у себя (можно не писать)</span>
+        <input class="input" id="an-note" maxlength="200" placeholder="Например: сначала сыграй пару кастомок на сайте"></label></div>
+        <footer><button class="btn" data-close>Отмена</button><button class="btn danger" id="an-go">Отклонить</button></footer>`);
+      $('#an-go', m.el).addEventListener('click', () => { const note = $('#an-note', m.el).value.trim(); m.close(); decide(b.dataset.uid, false, note); });
+    }
     if (a === 'steam') linkSteam();
     if (a === 'refresh') { b.disabled = true; await save('/me/refresh', {}, 'Статистика обновлена'); }
     if (a === 'unlink') {
@@ -182,10 +246,10 @@ function mePage() {
     if (a === 'host_add') {
       const l = $('#adm-login').value.trim().replace(/^@/, '');
       if (!l) { toast('Впиши логин Twitch', true); return; }
-      try { drawHosts(await call('/admin/hosts', { add: l })); toast(l + ' теперь может создавать лобби'); } catch (err) { oops(err); }
+      try { drawHosts({ hosts: await call('/admin/hosts', { add: l }) }); toast(l + ' теперь может создавать лобби'); } catch (err) { oops(err); }
     }
     if (a === 'host_del') {
-      try { drawHosts(await call('/admin/hosts', { remove: b.dataset.login })); toast(b.dataset.login + ' больше не создаёт лобби'); } catch (err) { oops(err); }
+      try { drawHosts({ hosts: await call('/admin/hosts', { remove: b.dataset.login }) }); toast(b.dataset.login + ' больше не создаёт лобби'); } catch (err) { oops(err); }
     }
     if (a === 'delete') {
       if (await confirmHold({ title: 'Удалить профиль?', text: 'С сайта сотрутся профиль, привязка Steam и статистика игр. Вернуть их нельзя.', label: 'Удалить профиль', seconds: 3 })) {
@@ -208,13 +272,8 @@ async function userPage(login, fresh) {
         ${c.steam ? `<a class="chip" href="https://statlocker.gg/profile/${c.steam}" target="_blank" rel="noopener">Statlocker</a>` : ''}
         ${c.host ? `<a class="chip" href="#/${esc(c.login)}">страница ведущего</a>` : ''}
         ${c.games ? `<span class="chip">${c.games} ${plural(c.games, 'игра', 'игры', 'игр')} на сайте, побед ${c.wins}</span>` : ''}` };
-  view.innerHTML = profileBlocks(c, c.more, who);
-  if (unmount) unmount();
-  unmount = mountProfile(view);
-  view.onclick = (e) => {
-    const sg = e.target.closest('[data-site]');
-    if (sg) { const g = ((c.more && c.more.site) || [])[+sg.dataset.site]; if (g) openGame(g); }
-  };
+  view.innerHTML = profileBlocks(c, c.more, who, c.played);
+  view.onclick = (e) => { profileClick(e, c.played, user.me && user.me.id); };
 }
 
 // ---------------------------------------------------------------- страница ведущего
@@ -306,7 +365,8 @@ function devBar() {
 async function boot() {
   try { await loadMeta(); } catch (e) {
     view.innerHTML = `<div class="card empty"><h3>Сервер лобби не отвечает</h3><p class="dim" style="margin-top:6px">${esc(e.message)}</p>
-      <div class="row" style="justify-content:center;margin-top:14px"><button class="btn" onclick="location.reload()">Обновить страницу</button></div></div>`;
+      <div class="row" style="justify-content:center;margin-top:14px"><button class="btn" id="boot-reload">Обновить страницу</button></div></div>`;
+    $('#boot-reload').addEventListener('click', () => location.reload());
     top();
     return;
   }
