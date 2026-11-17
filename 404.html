@@ -9,6 +9,8 @@
 (function () {
   var p = location.pathname, base = '/';
   if (p.indexOf('/lobby/') === 0) { base = '/lobby/'; p = p.slice(6); }
+  // счётчик посещений (js/visit.js) узнает отсюда, откуда человек пришёл на самом деле
+  try { if (document.referrer) sessionStorage.setItem('ae-ref', document.referrer); } catch (e) {}
   location.replace(base + '#' + p.replace(/\/+$/, '') + location.search);
 })();
 </script>
