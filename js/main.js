@@ -1,14 +1,14 @@
 // Лобби: маршруты, шапка, главная, профиль, страница ведущего.
-import { call, meta, loadMeta, session } from './api.js?v=20261117235001';
+import { call, meta, loadMeta, session } from './api.js?v=20261117235307';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, toast, oops, modal, head, confirmHold, closeModal,
   ICON, dateRu,
-} from './ui.js?v=20261117235001';
-import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261117235001';
-import { mountEvent } from './event.js?v=20261117235001';
-import { profileBlocks, profileClick } from './profile.js?v=20261117235001';
-import { gameRow, openGame } from './score.js?v=20261117235001';
-import { mountStats } from './stats.js?v=20261117235001';
+} from './ui.js?v=20261117235307';
+import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261117235307';
+import { mountEvent } from './event.js?v=20261117235307';
+import { profileBlocks, profileClick } from './profile.js?v=20261117235307';
+import { gameRow, openGame } from './score.js?v=20261117235307';
+import { mountStats } from './stats.js?v=20261117235307';
 
 const view = $('#view');
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
@@ -17,7 +17,8 @@ let unmount = null;
 let seq = 0;
 let timer = 0;
 
-const parts = () => location.hash.replace(/^#\/?/, '').split('/').filter(Boolean).map((x) => { try { return decodeURIComponent(x); } catch (e) { return x; } });
+// хвост «?…» за решёткой — метки ссылок (?from=tg), их переносит сюда 404.html; к адресу страницы они не относятся
+const parts = () => location.hash.replace(/^#\/?/, '').split('?')[0].split('/').filter(Boolean).map((x) => { try { return decodeURIComponent(x); } catch (e) { return x; } });
 
 function leave() {
   clearInterval(timer);
