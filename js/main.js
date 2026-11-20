@@ -1,14 +1,15 @@
 // Лобби: маршруты, шапка, главная, профиль, страница ведущего.
-import { call, meta, loadMeta, session } from './api.js?v=20261117235307';
+import { call, meta, loadMeta, session } from './api.js?v=20261121065955';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, toast, oops, modal, head, confirmHold, closeModal,
   ICON, dateRu,
-} from './ui.js?v=20261117235307';
-import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261117235307';
-import { mountEvent } from './event.js?v=20261117235307';
-import { profileBlocks, profileClick } from './profile.js?v=20261117235307';
-import { gameRow, openGame } from './score.js?v=20261117235307';
-import { mountStats } from './stats.js?v=20261117235307';
+} from './ui.js?v=20261121065955';
+import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261121065955';
+import { mountEvent } from './event.js?v=20261121065955';
+import { profileBlocks, profileClick } from './profile.js?v=20261121065955';
+import { gameRow, openGame } from './score.js?v=20261121065955';
+import { mountStats } from './stats.js?v=20261121065955';
+import { signupHtml, signupClick, openSignup, resumeSignup } from './signup.js?v=20261121065955';
 
 const view = $('#view');
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
@@ -20,9 +21,13 @@ let timer = 0;
 // хвост «?…» за решёткой — метки ссылок (?from=tg), их переносит сюда 404.html; к адресу страницы они не относятся
 const parts = () => location.hash.replace(/^#\/?/, '').split('?')[0].split('/').filter(Boolean).map((x) => { try { return decodeURIComponent(x); } catch (e) { return x; } });
 
+const baseTitle = document.title;
+let offPage = null;            // подписка страницы на вход и выход пользователя
 function leave() {
   clearInterval(timer);
   timer = 0;
+  document.title = baseTitle;
+  if (offPage) { offPage(); offPage = null; }
   if (unmount) { unmount(); unmount = null; }
 }
 
@@ -69,9 +74,12 @@ async function home(fresh) {
     const me = user.me;
     const mine = me && events.find((e) => e.host.login === me.login);
     const btn = [];
-    if (!me) btn.push(`<button class="btn primary xl" data-go="login">${ICON.twitch}<span>Войти через Twitch</span></button>`);
-    if (me && me.can_host) btn.push(mine ? `<a class="btn primary xl" href="#/${esc(me.login)}">Открыть моё лобби</a>` : '<button class="btn primary xl" data-go="create">Создать лобби</button>');
-    if (me && !me.steam) btn.push(`<button class="btn xl" data-go="steam">${ICON.steam}<span>Привязать Steam</span></button>`);
+    // идёт запись на кастомки — главная кнопка страницы одна, «Записаться» в её блоке (она же проведёт через вход и Steam)
+    if (!me && !signups.length) btn.push(`<button class="btn primary xl" data-go="login">${ICON.twitch}<span>Войти через Twitch</span></button>`);
+    const myList = me && signups.some((x) => x.host.uid === me.id);      // у ведущего уже открыта запись: «Создать лобби» стоит в её блоке
+    if (me && me.can_host && mine) btn.push(`<a class="btn primary xl" href="#/${esc(me.login)}">Открыть моё лобби</a>`);
+    else if (me && me.can_host && !myList) btn.push('<button class="btn primary xl" data-go="create">Создать лобби</button><button class="btn xl" data-go="signup">Открыть запись на кастомки</button>');
+    if (me && !me.steam && !signups.length) btn.push(`<button class="btn xl" data-go="steam">${ICON.steam}<span>Привязать Steam</span></button>`);
     const rows = events.map((e) => `<a class="card evrow" href="#/${esc(e.host.login)}">${ava(e.host)}
       <span class="t"><b>${esc(e.title)}</b><span>${PHASE[e.phase] || ''} · ${e.caps ? `записались ${e.seats + e.queue}` : `в составе ${e.seats} из ${e.cap}${e.queue ? ' · в очереди ' + e.queue : ''}`}${e.round > 1 ? ' · игра ' + e.round : ''}</span></span>
       ${e.host.live ? '<span class="chip live">LIVE</span>' : ''}<span class="btn sm primary">Зайти</span></a>`).join('');
@@ -80,10 +88,16 @@ async function home(fresh) {
       ${badgeImg(me.badge)}<span class="btn sm">Открыть</span></a></section>` : '';
     const played = games.length ? `<section class="sec"><h2>Сыгранные игры <a class="plink on sech-link" href="#/stats">вся статистика кастомок</a></h2>
       <div class="card"><div class="glist wide">${games.map((g, i) => gameRow(g, i, { host: true })).join('')}</div></div></section>` : '';
-    view.innerHTML = `<section class="hello"><h1>Кастомки Deadlock со зрителями</h1>
-      <p>Ведущий создаёт лобби и кидает ссылку в чат. Зрители записываются, два капитана набирают команды, потом драфт героев и код для входа в игру.</p>
-      ${btn.length ? `<div class="row">${btn.join('')}</div>` : ''}${me && !me.can_host ? `<p class="ap-line">${applyLine(me)}</p>` : ''}</section>
-      <section class="sec"><h2>Открытые лобби</h2><div class="list">${rows || '<div class="card empty">Сейчас открытых лобби нет. Когда ведущий создаст лобби, оно появится здесь.</div>'}</div></section>${played}${prof}
+    // Идёт запись — она и есть главное на странице: вводный текст и строка для стримеров уходят вниз, чтобы кнопка
+    // «Записаться» стояла на первом экране и на телефоне (зритель приходит по ссылке из чата чаще всего с него).
+    const open = signups.length > 0;
+    const apply = me && !me.can_host ? applyLine(me) : '';
+    view.innerHTML = `<section class="hello ${open ? 'tight' : ''}"><h1>Кастомки Deadlock со зрителями</h1>
+      ${open ? '' : '<p>Ведущий создаёт лобби и кидает ссылку в чат. Зрители записываются, два капитана набирают команды, потом драфт героев и код для входа в игру.</p>'}
+      ${btn.length ? `<div class="row">${btn.join('')}</div>` : ''}${apply && !open ? `<p class="ap-line">${apply}</p>` : ''}</section>
+      ${signups.map((x) => signupHtml(x)).join('')}
+      <section class="sec"><h2>Открытые лобби</h2><div class="list">${rows || `<div class="card empty">${open ? 'Лобби пока нет: ведущий создаст его к началу игры, и в блоке записи появится кнопка «Войти в лобби».' : 'Сейчас открытых лобби нет. Когда ведущий создаст лобби, оно появится здесь.'}</div>`}</div></section>${played}${prof}
+      ${apply && open ? `<p class="ap-line low">${apply}</p>` : ''}
       <section class="sec"><h2>Как проходит игра</h2><ol class="flow">
         <li><b>Запись</b><span>Зрители заходят по ссылке и жмут «Записаться». Ранг и герои подтягиваются из Steam.</span></li>
         <li><b>Капитаны</b><span>Двое жмут «Стать капитаном» — или ведущий запускает голосование, и капитанов выбирают игроки.</span></li>
@@ -93,14 +107,30 @@ async function home(fresh) {
   };
   view.innerHTML = '<div class="card empty">Загружаю…</div>';
   let games = [];              // последние сыгранные игры всех ведущих
+  let signups = [];            // открытые записи на кастомки (signup.js)
   let shown = '';
   const load = async () => {
     const [d, g] = await Promise.all([call('/events'), call('/games').catch(() => ({ games }))]);
+    if (!fresh()) return;
     games = g.games || [];
-    const key = JSON.stringify([d.events, games, user.me && user.me.id]);
-    if (fresh() && key !== shown) { shown = key; draw(d.events); }       // ничего не изменилось — страницу не трогаем
+    signups = d.signups || [];
+    const me = user.me;
+    // в ключе ещё и «время пришло»: в этот момент текст блока записи и главная кнопка ведущего меняются, хотя с сервера пришло то же самое
+    const key = JSON.stringify([d.events, games, signups, signups.map((x) => x.start <= Date.now() / 1000), me && [me.id, me.steam, me.can_host]]);
+    if (key !== shown) { shown = key; draw(d.events); }                  // ничего не изменилось — страницу не трогаем
+    // записавшемуся, для которого уже создали лобби, это видно и с другой вкладки
+    const call2 = me && signups.find((x) => x.lobby && x.list.some((p) => p.uid === me.id) && !x.inside.includes(me.id));
+    document.title = call2 ? '● Лобби создано — заходи' : baseTitle;
+    resumeSignup(signups, load);
+  };
+  // пока идёт запись и старт близко (или лобби уже создано), главная обновляется чаще: кнопка «Войти в лобби» не должна опаздывать
+  const hot = () => signups.some((x) => x.lobby || x.start - Date.now() / 1000 < 1800);
+  const loop = async () => {
+    try { await load(); } catch (e) { /* сеть моргнула — попробуем в следующий раз */ }
+    if (fresh()) timer = setTimeout(loop, hot() ? 5000 : 20000);
   };
   view.onclick = async (e) => {
+    if (signupClick(e, signups, load)) return;
     const gm = e.target.closest('[data-game]');
     if (gm) { if (games[+gm.dataset.game]) openGame(games[+gm.dataset.game]); return; }
     const b = e.target.closest('[data-go]');
@@ -108,12 +138,13 @@ async function home(fresh) {
     if (b.dataset.go === 'login') login();
     if (b.dataset.go === 'steam') linkSteam();
     if (b.dataset.go === 'apply') applyModal();
+    if (b.dataset.go === 'signup') { if (await openSignup()) await load(); }
     if (b.dataset.go === 'create') {
       try { await call('/events', {}); location.hash = '#/' + user.me.login; } catch (err) { oops(err); }
     }
   };
   await load();
-  timer = setInterval(() => load().catch(() => {}), 20000);
+  timer = setTimeout(loop, hot() ? 5000 : 20000);
 }
 
 // ---------------------------------------------------------------- заявка: «хочу вести свои лобби»
@@ -287,7 +318,8 @@ async function hostPage(login, fresh, obs) {
     const h = await call('/h/' + login);
     if (!fresh()) return;
     const want = h.event || '';
-    const key = JSON.stringify(h);
+    // вошёл, привязал Steam или пришло время старта — блок записи меняется
+    const key = JSON.stringify(h) + (user.me ? `${user.me.id}:${user.me.steam}` : '') + (h.signup && h.signup.start <= Date.now() / 1000 ? ':go' : '');
     if (shown === want && (want || key === lastKey)) return;
     lastKey = key;
     if (unmount) { unmount(); unmount = null; }
@@ -300,23 +332,28 @@ async function hostPage(login, fresh, obs) {
           <a class="chip" href="https://twitch.tv/${esc(hs.login)}" target="_blank" rel="noopener">twitch.tv/${esc(hs.login)}</a></div>
         ${h.about ? `<p class="dim" style="margin-top:10px">${esc(h.about)}</p>` : ''}</div></div>
       <div class="grid2"><div class="col">
-        <section class="stage"><div class="stbody"><div><h2 class="sttitle">Лобби сейчас не открыто</h2>
-          <p class="sttext">${h.mine ? 'Создай лобби и кинь ссылку на эту страницу в чат: зрители записываются сами.' : h.schedule ? esc(h.schedule) : 'Когда ведущий создаст лобби, оно появится на этой странице.'}</p></div>
-          ${h.mine ? '<div class="stbtns"><button class="btn primary xl" data-hp="create">Создать лобби</button><button class="btn xl" data-hp="edit">Изменить страницу</button></div>' : ''}</div></section>
+        ${h.signup ? `${signupHtml(h.signup, { here: h.signup.host.login === login })}${h.mine ? '<div class="row" style="margin:-10px 0 16px"><button class="btn ghost" data-hp="edit">Изменить страницу</button></div>' : ''}`
+    : `<section class="stage"><div class="stbody"><div><h2 class="sttitle">Лобби сейчас не открыто</h2>
+          <p class="sttext">${h.mine ? 'Играете сейчас — создай лобби и кинь ссылку на эту страницу в чат. Играете позже — открой запись: зрители запишутся заранее, а лобби создашь перед игрой.' : h.schedule ? esc(h.schedule) : 'Когда ведущий создаст лобби, оно появится на этой странице.'}</p></div>
+          ${h.mine ? '<div class="stbtns"><button class="btn primary xl" data-hp="create">Создать лобби</button><button class="btn xl" data-hp="signup">Открыть запись на кастомки</button><button class="btn ghost" data-hp="edit">Изменить страницу</button></div>' : ''}</div></section>`}
         ${h.links.length ? `<section class="card"><header><h2>Ссылки</h2></header><div class="body"><div class="links">${h.links.map((l) => `<a href="${esc(l.url)}" target="_blank" rel="noopener nofollow">${esc(l.title)}</a>`).join('')}</div></div></section>` : ''}
         ${h.rules ? `<section class="card"><header><h2>Правила</h2></header><div class="body"><div class="rules">${esc(h.rules)}</div></div></section>` : ''}
       </div><section class="card"><header><h2>Прошедшие игры</h2><span class="dim num">${h.matches.length}</span></header>
         ${h.matches.length ? `<div class="glist">${h.matches.map(gameRow).join('')}</div>` : '<div class="empty">Игр пока не было</div>'}</section></div>`;
+    if (h.signup) resumeSignup([h.signup], () => draw().catch(() => {}));
     view.onclick = async (e) => {
+      if (h.signup && signupClick(e, [h.signup], () => draw().catch(() => {}))) return;
       const gm = e.target.closest('[data-game]');
       if (gm) { const m = h.matches[+gm.dataset.game]; if (m) openGame(m); return; }
       const b = e.target.closest('[data-hp]');
       if (!b) return;
       if (b.dataset.hp === 'create') { try { await call('/events', {}); await draw(); } catch (err) { oops(err); } }
+      if (b.dataset.hp === 'signup') { if (await openSignup()) await draw(); }
       if (b.dataset.hp === 'edit') editHost(h, () => { draw().catch(oops); });
     };
   };
   await draw();
+  offPage = onUser(() => { draw().catch(() => {}); });
   timer = setInterval(() => draw().catch(() => {}), 15000);
 }
 

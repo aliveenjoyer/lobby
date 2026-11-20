@@ -1,5 +1,5 @@
 // Мелкие кирпичи интерфейса: безопасный текст, окна, уведомления, значки рангов и героев.
-import { meta } from './api.js?v=20261117235307';
+import { meta } from './api.js?v=20261121065955';
 
 export const $ = (sel, root) => (root || document).querySelector(sel);
 export const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -44,6 +44,37 @@ export function clock(sec) {
 }
 export function dateRu(ts) {
   return new Date(ts * 1000).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+}
+
+// ---- время старта. Называем его по Москве (так говорят ведущие: «кастомки в шесть по Москве»), рядом — местное,
+// если у человека оно другое.
+const MSK = 'Europe/Moscow';
+export function startText(ts) {
+  const d = new Date(ts * 1000);
+  const day = (x) => x.toLocaleDateString('ru-RU', { timeZone: MSK, day: 'numeric', month: 'long' });
+  const hm = d.toLocaleTimeString('ru-RU', { timeZone: MSK, hour: '2-digit', minute: '2-digit' });
+  const dd = day(d);
+  const when = dd === day(new Date()) ? 'сегодня' : dd === day(new Date(Date.now() + 86400000)) ? 'завтра' : dd;
+  const local = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  return `${when} в ${hm} по Москве${local !== hm ? ` (у тебя ${local})` : ''}`;
+}
+// Обратный отсчёт до старта — с часами и днями. clock() для этого не годится: он показывает длину матча минутами.
+export function countdown(sec) {
+  sec = Math.max(0, Math.ceil(sec));
+  const two = (n) => String(n).padStart(2, '0');
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  if (d) return `${d} д ${h}:${two(m)}:${two(sec % 60)}`;
+  return h ? `${h}:${two(m)}:${two(sec % 60)}` : `${m}:${two(sec % 60)}`;
+}
+// «через 2 д 3 ч», «через 19 ч 14 мин», «через 14 мин»
+export function soon(sec) {
+  const total = Math.max(1, Math.round(Math.max(0, sec) / 60));       // сначала округляем до минут: иначе выходило «4 ч 60 мин»
+  const d = Math.floor(total / 1440);
+  const h = Math.floor((total % 1440) / 60);
+  const m = total % 60;
+  return 'через ' + (d ? `${d} д ${h} ч` : h ? (m ? `${h} ч ${m} мин` : `${h} ч`) : `${m} мин`);
 }
 
 export const ICON = {
@@ -123,6 +154,50 @@ export function modal(html, opt) {
 }
 export function closeModal() { if (openModal) openModal.close(); }
 export const head = (title) => `<header><h3>${esc(title)}</h3><button class="x" data-close aria-label="Закрыть">×</button></header>`;
+
+// Окно «Время старта»: день и время по Москве; по умолчанию — ближайшие 18:00.
+// cur — уже назначенное время; o: { title, text, save, clear: показать «Убрать время» }.
+// -> { at: время Unix } | { clear: true } | null, если окно закрыли.
+export function askStart(cur, o) {
+  o = o || {};
+  const nowS = Date.now() / 1000;
+  let def = cur && cur > nowS ? cur : 0;
+  if (!def) {
+    const m = new Date((nowS + 10800) * 1000);                   // сейчас по Москве (она на три часа впереди UTC круглый год)
+    def = Date.UTC(m.getUTCFullYear(), m.getUTCMonth(), m.getUTCDate(), 15, 0) / 1000;      // 18:00 по Москве
+    if (def < nowS + 1200) def += 86400;
+  }
+  const iso = (t) => new Date((t + 10800) * 1000).toISOString();
+  return new Promise((resolve) => {
+    let out = null;
+    const m = modal(`${head(o.title || 'Время старта')}<div class="body">
+      <p class="dim" style="margin-bottom:14px">${esc(o.text || 'Игроки записываются заранее и видят таймер. Кто раньше записался, тот раньше попадает в игру.')}</p>
+      <div class="grid2" style="gap:10px"><label class="field"><span>День</span><input class="input" type="date" id="sa-date" value="${iso(def).slice(0, 10)}" min="${iso(nowS).slice(0, 10)}" max="${iso(nowS + 29 * 86400).slice(0, 10)}"></label>
+        <label class="field"><span>Время по Москве</span><input class="input" type="time" id="sa-time" value="${iso(def).slice(11, 16)}" step="300"></label></div>
+      <p class="dim" id="sa-hint" style="margin-top:12px"></p></div>
+      <footer>${o.clear ? '<button class="btn ghost" id="sa-clear" style="margin-right:auto">Убрать время</button>' : ''}<button class="btn" data-close>Отмена</button><button class="btn primary" id="sa-save">${esc(o.save || 'Сохранить')}</button></footer>`,
+    { onClose: () => resolve(out) });
+    const read = () => {
+      const ms = Date.parse(`${$('#sa-date', m.el).value}T${$('#sa-time', m.el).value}:00+03:00`);
+      return Number.isFinite(ms) ? ms / 1000 : null;
+    };
+    const hint = () => {
+      const at = read();
+      $('#sa-hint', m.el).textContent = at == null ? 'Выбери день и время.' : at < Date.now() / 1000 ? 'Это время уже прошло.'
+        : `Старт ${startText(at)} — ${soon(at - Date.now() / 1000)}.`;
+    };
+    m.el.addEventListener('input', hint);
+    hint();
+    $('#sa-save', m.el).addEventListener('click', () => {
+      const at = read();
+      if (at == null || at < Date.now() / 1000) { toast('Выбери время в будущем', true); return; }
+      out = { at: Math.round(at) };
+      m.close();
+    });
+    const c = $('#sa-clear', m.el);
+    if (c) c.addEventListener('click', () => { out = { clear: true }; m.close(); });
+  });
+}
 
 // Опасное действие: окно с прямым названием и кнопкой, которую надо удерживать.
 export function confirmHold(o) {

@@ -1,13 +1,13 @@
 // Страница лобби. Правило одно: один шаг — одна главная кнопка.
 // Сверху «сцена»: что сейчас происходит и что нажать именно мне (игроку, капитану или ведущему).
 // Под ней комната: места капитанов, список игроков, команды, драфт героев.
-import { API, BASE, call, meta } from './api.js?v=20261117235307';
+import { API, BASE, call, meta } from './api.js?v=20261121065955';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, clock, toast, oops, modal, head, closeModal,
   confirmHold, copy, rankPicker, pickedRank, ICON, morph,
-} from './ui.js?v=20261117235307';
-import { user, login, linkSteam, onUser } from './auth.js?v=20261117235307';
-import { scoreHtml, gameRow, openGame } from './score.js?v=20261117235307';
+} from './ui.js?v=20261121065955';
+import { user, login, linkSteam, onUser, want } from './auth.js?v=20261121065955';
+import { scoreHtml, gameRow, openGame } from './score.js?v=20261121065955';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 const TEAM_GEN = { a: 'Янтаря', b: 'Сапфира' };
@@ -48,6 +48,9 @@ export function mountEvent(root, id, opt) {
   const isReady = (u) => st.ready.includes(u) || !!(st.cards[u] && st.cards[u].guest);
   const capOf = (uid) => (!uid || st.phase !== 'gather' ? null : st.caps.a === uid ? 'a' : st.caps.b === uid ? 'b' : null);
   const now = () => Date.now() / 1000 + skew;
+  // Кто идёт в ближайшую игру, когда в неё попадают первые по списку (настройка priority). null — мест хватает всем.
+  const firstGame = () => (st.settings.priority !== false && st.prelim && st.prelim.games.length
+    ? new Set(st.prelim.games[0].a.concat(st.prelim.games[0].b)) : null);
   const nm = (uid) => esc(card(uid).name);
   // ранг берётся только из игры; если его там нет — так и пишем (калибровка: рейтинг уже играет, ранг ещё не выдан)
   const rankLine = (c) => (c.badge ? `${esc(badgeName(c.badge))}${c.pts != null && !opt.obs ? ' · <span class="num">' + fmt(c.pts) + '</span>' : ''}`
@@ -104,7 +107,23 @@ export function mountEvent(root, id, opt) {
           : 'Никто не проголосовал: капитаны не выбраны', !a);
     }
     render();
+    resumeJoin();
     if (next.phase === 'closed' && es) { es.close(); es = null; }
+  }
+
+  // Человек хотел записаться, и его остановил вход или Steam (или он пришёл с главной по кнопке «Войти в лобби»).
+  // Когда они готовы, записываем сами: второй раз кнопку жать не нужно.
+  let resuming = false;
+  async function resumeJoin() {
+    const me = user.me;
+    if (resuming || !st || !me || opt.obs || !want.get('lobby', id)) return;
+    if (st.phase === 'closed' || whereOf(st, me.id)) { want.clear(); return; }
+    if (!me.steam && !isHost()) return;                       // ещё нужен Steam: на сцене стоит кнопка этого шага
+    resuming = true;
+    want.clear();
+    const r = await act('join');
+    if (r) toast(r.where === 'seat' ? 'Готово: ты в составе' : r.where === 'pool' ? 'Готово: ты в списке игроков' : 'Готово: ты в очереди');
+    resuming = false;
   }
 
   function getPrivate() {
@@ -379,8 +398,10 @@ export function mountEvent(root, id, opt) {
       g.tone = turn || '';
       if (capU && capU === uid) {
         g.now = true;
+        const need = st.settings.size - st.teams[turn].length;
+        const win = st.pick.window || [];
         g.title = 'Твой ход: возьми игрока';
-        g.text = `Нажми «Взять» у игрока в списке свободных.${g.timer ? ' Не успеешь — сайт возьмёт сильнейшего.' : ''}`;
+        g.text = `Нажми «Взять» у игрока в колонке «Свободные игроки». Тебе осталось взять ${need}.${win.length < free ? ' Выбираешь из тех, чья очередь играть: они записались раньше.' : ''}${g.timer ? ' Не успеешь — сайт возьмёт сильнейшего.' : ''}`;
       } else if (host && !free) {
         g.timer = null;
         g.title = 'Свободных игроков нет';
@@ -462,7 +483,9 @@ export function mountEvent(root, id, opt) {
     if (!w) {
       g.title = roleOf(uid) === 'caster' ? 'Ты кастер этого лобби' : 'Запись на игру открыта';
       if (blocked && roleOf(uid) !== 'caster') { g.title = blocked.title; g.text = blocked.text; g.btns = blocked.btns; return g; }
-      offerJoin(`${nPool ? `Уже записались ${nPool}. ` : ''}Запишись игроком — или сразу нажми «Стать капитаном» ниже и набирай свою команду.`);
+      const pre = uid ? (st.signup || []).indexOf(uid) : -1;
+      offerJoin(pre >= 0 ? `Ты записывался заранее, твой номер — ${pre + 1}. Заходи: в списке встанешь по порядку записи, впереди тех, кто записался позже.`
+        : `${nPool ? `Уже записались ${nPool}. ` : ''}Запишись игроком — или сразу нажми «Стать капитаном» ниже и набирай свою команду.`);
       return g;
     }
     const cp = capOf(uid);
@@ -683,16 +706,34 @@ export function mountEvent(root, id, opt) {
     const mine = uid ? st.votes[uid] : null;
     const canVote = voting && uid && st.queue.includes(uid);
     const nReady = st.queue.filter(isReady).length;
-    const rows = st.queue.map((u) => {
+    const first = firstGame();
+    // черта под теми, кто идёт в ближайшую игру: ниже неё запас (метка в каждой строке сжимала имена на телефоне)
+    const spare = first ? st.queue.filter((u) => isReady(u) && !first.has(u)) : [];
+    const rows = st.queue.map((u, i) => {
       let extra = '';
       if (voting) {
         extra = (cnt[u] ? `<span class="votes" title="голосов">${cnt[u]}</span>` : '')
           + (canVote && isReady(u) ? `<span class="mini ${mine === u ? 'on' : ''}" role="button" data-vote="${esc(u)}">${mine === u ? 'Твой голос' : 'Голос'}</span>` : '');
       }
-      return slot(u, { pool: true, cap: capOf(u), extra });
+      // номер — место в очереди: кто записался заранее, стоит по порядку записи; кто выше, тот раньше попадает в игру
+      return (u === spare[0] ? `<div class="su-cut"><b>Запас · ${spare.length}</b><span>играют следующими — или в этой игре, если кто-то выше не придёт</span></div>` : '')
+        + slot(u, { pool: true, pos: i + 1, cap: capOf(u), extra });
     }).join('');
     return `<section class="card plist people ${voting ? 'voting' : ''}"><header><h2>Игроки</h2><span class="dim num">записались ${st.queue.length} · готовы ${nReady} · нужно ${cap()}</span></header>
       ${rows ? `<div class="pgrid">${rows}</div>` : '<div class="empty">Пока никто не записался</div>'}</section>`;
+  }
+
+  // Предварительные команды по силе (просьба владельца 21.11): первые по списку — в первую игру, внутри игры сайт делит
+  // на две ровные команды. Это прикидка: настоящие команды наберут капитаны (или поделит ведущий).
+  function prelimBlock() {
+    const p = st.prelim;
+    if (!p || !p.games.length || st.phase !== 'gather' || opt.obs) return '';
+    const side = (k, ids, sum) => `<div class="pl-side ${k}"><div class="pl-h"><span class="tn">${TEAM[k]}</span><span class="num">сила ${fmt(sum)}</span></div>
+      ${ids.map((u) => { const c = card(u); return `<button class="pl-p ${u === meId() ? 'mine' : ''}" data-uid="${esc(u)}">${ava(c, 's')}<b>${esc(c.name)}</b>${badgeImg(c.badge)}</button>`; }).join('')}</div>`;
+    const games = p.games.map((g, i) => `<div class="pl-game"><div class="pl-t"><b>${p.games.length > 1 ? `Игра ${i + 1}` : 'Первая игра'}</b><span class="dim">${esc(g.words || '')}</span></div>
+      <div class="pl-vs">${side('a', g.a, g.sum_a)}${side('b', g.b, g.sum_b)}</div></div>`).join('');
+    // запас здесь не повторяем: в списке игроков он уже отделён чертой
+    return `<section class="card prelim"><header><h2>Предварительные команды</h2><span class="dim">по силе игроков и месту в списке · ${caps() ? 'настоящие наберут капитаны' : 'настоящие поделит ведущий'}</span></header>${games}</section>`;
   }
 
   function teamCol(k) {
@@ -715,12 +756,22 @@ export function mountEvent(root, id, opt) {
     const turn = picking && st.pick && st.pick.turn;
     const myTurn = turn && st.teams[turn][0] === uid;
     const canPick = turn && (isHost() || myTurn);
-    const list = st.queue.filter(isReady).concat(st.queue.filter((u) => !isReady(u)));
-    const rows = list.map((u) => slot(u, { pool: true,
-      extra: canPick && isReady(u) ? `<span class="mini ${myTurn ? 'on' : ''}" role="button" data-pick="${esc(u)}">Взять</span>` : '' })).join('');
-    const ready = st.queue.filter(isReady).length;
-    return `<section class="card poolcol"><header><h2>${picking ? 'Свободные игроки' : 'Запас'}</h2>
-      <span class="dim num">${picking ? `готовы ${ready} из ${st.queue.length}` : st.queue.length}</span></header>
+    // окно выбора: с настройкой «в игру идут первые по списку» капитан берёт только тех, чья очередь играть
+    const win = picking && st.pick && st.pick.window ? new Set(st.pick.window) : null;
+    const inWin = (u) => !win || win.has(u);
+    const readyList = st.queue.filter(isReady);
+    const row = (u) => slot(u, { pool: true,
+      extra: canPick && isReady(u) && (isHost() || inWin(u)) ? `<span class="mini ${myTurn && inWin(u) ? 'on' : ''}" role="button" data-pick="${esc(u)}">Взять</span>` : '' });
+    // сверху те, кого берут в эту игру; под чертой — кто записался позже (они играют следом); в конце — кто не отметился готовым
+    const outside = readyList.filter((u) => !inWin(u));
+    const rows = readyList.filter(inWin).map(row).join('')
+      + (outside.length ? `<div class="su-cut"><b>Следующая игра · ${outside.length}</b><span>записались позже</span></div>${outside.map(row).join('')}` : '')
+      + st.queue.filter((u) => !isReady(u)).map(row).join('');
+    const ready = readyList.length;
+    // на своём ходу колонка подсвечена цветом команды капитана: видно, куда смотреть и что нажимать
+    return `<section class="card poolcol ${myTurn ? 'myturn ' + turn : ''}"><header><h2>${picking ? 'Свободные игроки' : 'Запас'}</h2>
+      <span class="dim num">${picking ? (win && win.size < ready ? `в эту игру ${win.size} · готовы ${ready}` : `готовы ${ready} из ${st.queue.length}`) : st.queue.length}</span></header>
+      ${myTurn ? '<div class="poolhint">Твой ход — нажми «Взять»</div>' : ''}
       ${rows ? `<div class="slots">${rows}</div>` : `<div class="empty">${picking ? 'Свободных игроков нет' : 'В запасе никого'}</div>`}</section>`;
   }
 
@@ -729,7 +780,7 @@ export function mountEvent(root, id, opt) {
     for (let i = st.seats.length; i < cap(); i++) rows.push(freeSlot(i === st.seats.length));
     const q = st.queue.map((u, i) => slot(u, { pos: i + 1 })).join('');
     return `<section class="card plist"><header><h2>Состав</h2><span class="dim num">${st.seats.length} из ${cap()}</span></header><div class="pgrid">${rows.join('')}</div></section>
-      ${q ? `<section class="card plist"><header><h2>Очередь</h2><span class="dim num">${st.queue.length}</span></header><div class="pgrid">${q}</div></section>` : ''}`;
+      ${q ? `<section class="card plist"><header><h2>Очередь</h2><span class="dim num">${st.queue.length}</span></header><div class="pgrid">${q}</div></section>` : ''}${prelimBlock()}`;
   }
 
   // Составы команд двумя короткими полосками: имя и аватар, без рангов — чтобы помещались над доской драфта.
@@ -757,7 +808,7 @@ export function mountEvent(root, id, opt) {
 
   function roomHtml() {
     const ph = st.phase;
-    if (!st.teams) return caps() ? (ph === 'closed' ? '' : capsBlock() + playersBlock()) : seatsBlock();
+    if (!st.teams) return caps() ? (ph === 'closed' ? '' : capsBlock() + playersBlock() + prelimBlock()) : seatsBlock();
     const d = st.draft;
     // во время драфта составы команд видны сразу, над доской: люди должны видеть, кто с кем (просьба владельца на живой
     // игре 16.11: «нажал драфт героев, и всё, нет списка команд»; второй список под доской он попросил убрать)
@@ -1096,6 +1147,7 @@ export function mountEvent(root, id, opt) {
         <label class="field"><span>Режим игры</span>${sel('mode', meta.modes, s.mode)}</label>
         <label class="field"><span>Регион сервера</span>${sel('region', meta.regions, s.region)}</label>
       </div>
+      ${sw('priority', 'В игру идут первые по списку: кто раньше записался, тот раньше играет (капитаны делят их по командам)', s.priority !== false)}
       ${sw('auto_lobby', 'Создавать лобби в игре самому, когда драфт окончен', s.auto_lobby !== false)}
       ${sw('rotation', 'Очередь играет следующую игру первой (когда команды делит сайт)', s.rotation)}
       ${sw('dup', 'Одинаковые герои разрешены', s.dup)}
@@ -1111,7 +1163,7 @@ export function mountEvent(root, id, opt) {
       const f = new FormData($('#set-form', m.el));
       const g = (n) => f.get(n);
       const settings = { size: +g('size'), mode: g('mode'), region: g('region'), draft: g('draft'), teams: g('teams'), order: g('order'), bans: +g('bans'), pick_seconds: +g('pick_seconds'), reserve_seconds: +g('reserve_seconds'),
-        auto_lobby: f.has('auto_lobby'), rotation: f.has('rotation'), dup: f.has('dup'), lanes: f.has('lanes'), cheats: f.has('cheats') };
+        priority: f.has('priority'), auto_lobby: f.has('auto_lobby'), rotation: f.has('rotation'), dup: f.has('dup'), lanes: f.has('lanes'), cheats: f.has('cheats') };
       if (!await act('settings', { settings })) return;
       const title = String(g('title')).trim();
       if (title && title !== st.title) await act('title', { title });
@@ -1201,8 +1253,8 @@ export function mountEvent(root, id, opt) {
   // ------------------------------------------------------------ нажатия
   const claim = async (k) => { const r = await act('cap_claim', { team: k }); if (r) toast(`Ты капитан «${TEAM_GEN[r.team]}»`); };
   const ACTS = {
-    login: () => login(),
-    steam: () => (user.me ? linkSteam() : login()),
+    login: () => { want.set('lobby', id); login(); },
+    steam: () => { want.set('lobby', id); if (user.me) linkSteam(); else login(); },
     join: async () => {
       const r = await act('join');
       if (r) toast(r.where === 'seat' ? 'Ты в составе' : r.where === 'pool' ? 'Ты в списке игроков' : 'Ты в очереди');
@@ -1256,7 +1308,10 @@ export function mountEvent(root, id, opt) {
     win_b: () => act('result', { winner: 'b' }),
     next: () => act('next'),
     close: async () => {
-      if (await confirmHold({ title: 'Закрыть лобби?', text: 'Запись закроется, игроки разойдутся. Сыгранные игры останутся в истории.', label: 'Закрыть лобби', seconds: 1.5 })) await act('close');
+      // лобби создано по записи и в нём ещё не играли — сервер вернёт запись со всем списком (app.py: signup_after_close)
+      const back = (st.signup || []).length && st.round === 1 && st.phase !== 'done';
+      if (await confirmHold({ title: 'Закрыть лобби?', text: back ? 'Игроки разойдутся. Игр в этом лобби ещё не было, поэтому запись на кастомки вернётся на главную со всем списком — лобби можно будет создать заново.'
+        : 'Запись закроется, игроки разойдутся. Сыгранные игры останутся в истории.', label: 'Закрыть лобби', seconds: 1.5 })) await act('close');
     },
     staff_add: () => staffModal(),
     new_lobby: async () => {
@@ -1319,7 +1374,7 @@ export function mountEvent(root, id, opt) {
   }
   root.addEventListener('click', onClick);
   for (const ev of ['dragstart', 'dragend', 'dragover', 'drop']) root.addEventListener(ev, onDrag);
-  const offUser = onUser(() => { pv = null; lastHtml = ''; if (st) { getPrivate(); render(); } });
+  const offUser = onUser(() => { pv = null; lastHtml = ''; if (st) { getPrivate(); render(); resumeJoin(); } });
 
   root.innerHTML = '<div class="card empty">Загружаю лобби…</div>';
   if (!opt.obs) document.body.classList.add('lobbypage');     // страница лобби шире остальных: справа колонка администрации

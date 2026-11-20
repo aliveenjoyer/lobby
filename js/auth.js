@@ -1,11 +1,25 @@
 // Вход через Twitch (по коду, как в кликере) и привязка Steam.
-import { call, session, BASE } from './api.js?v=20261117235307';
-import { modal, head, oops, esc, $, ICON, toast } from './ui.js?v=20261117235307';
+import { call, session, BASE } from './api.js?v=20261121065955';
+import { modal, head, oops, esc, $, ICON, toast } from './ui.js?v=20261121065955';
 
 export const user = { me: null };
 const subs = new Set();
 export function onUser(fn) { subs.add(fn); return () => subs.delete(fn); }
 export function setUser(me) { user.me = me; subs.forEach((f) => f(me)); }
+
+// Что человек собирался сделать, когда его остановил вход или привязка Steam: «записаться» (kind: signup) или «войти
+// в лобби» (kind: lobby). После входа и Steam страница делает это сама — второй раз кнопку жать не нужно. Хранится
+// во вкладке: переживает уход на страницу Steam и возврат.
+export const want = {
+  set(kind, id) { try { sessionStorage.setItem('lobby.want', JSON.stringify({ kind, id, at: Date.now() })); } catch (e) { /* без памяти */ } },
+  get(kind, id) {
+    try {
+      const w = JSON.parse(sessionStorage.getItem('lobby.want') || 'null');
+      return w && w.kind === kind && w.id === id && Date.now() - w.at < 30 * 60000 ? w : null;
+    } catch (e) { return null; }
+  },
+  clear() { try { sessionStorage.removeItem('lobby.want'); } catch (e) { /* нечего чистить */ } },
+};
 
 export async function refreshMe() {
   if (!session.token) { setUser(null); return null; }
