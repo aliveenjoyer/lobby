@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Кастомки QissMe_ со зрителями — Лобби</title>
+<meta name="description" content="Кастомки Deadlock со зрителями. Запись, капитаны, драфт героев и код лобби — на одной странице.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Лобби">
+<meta property="og:title" content="Кастомки QissMe_ со зрителями — Лобби">
+<meta property="og:description" content="Кастомки Deadlock со зрителями. Запись, капитаны, драфт героев и код лобби — на одной странице.">
+<meta property="og:url" content="https://lobby.aliveenjoyer.art/qissme_">
+<meta property="og:image" content="https://lobby.aliveenjoyer.art/og/qissme_.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://lobby.aliveenjoyer.art/og/qissme_.png">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<script>
+// Настоящая страница нужна мессенджерам: по ней они рисуют карточку ссылки (tools/og_cards.py). Человека сразу
+// переводим на страницу ведущего за решёткой — как это делает 404.html для остальных адресов.
+(function () {
+  var base = location.pathname.indexOf('/lobby/') === 0 ? '/lobby/' : '/';
+  // счётчик посещений (js/visit.js) узнает отсюда, откуда человек пришёл на самом деле
+  try { if (document.referrer) sessionStorage.setItem('ae-ref', document.referrer); } catch (e) {}
+  location.replace(base + '#/qissme_' + location.search);
+})();
+</script>
+</head>
+<body style="background:#0a0a0a"></body>
+</html>
