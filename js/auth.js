@@ -1,6 +1,6 @@
 // Вход через Twitch (по коду, как в кликере) и привязка Steam.
-import { call, session, BASE } from './api.js?v=20261122031934';
-import { modal, head, oops, esc, $, ICON, toast } from './ui.js?v=20261122031934';
+import { call, session, BASE, meta, DEV } from './api.js?v=20261122032634';
+import { modal, head, oops, esc, $, ICON, toast } from './ui.js?v=20261122032634';
 
 export const user = { me: null };
 const subs = new Set();
@@ -31,9 +31,26 @@ export async function refreshMe() {
   return user.me;
 }
 
+// Вход в одно нажатие: человек уходит на страницу Twitch, жмёт «Разрешить», и Twitch возвращает его на twitch.html
+// (js/twback.js) — оттуда он попадает на ту же страницу сайта уже вошедшим. Без кода и без второй вкладки: на телефоне
+// и во встроенных браузерах вход по коду терял людей. -> false, если так войти нельзя: тогда вход идёт по коду.
+function loginRedirect() {
+  const m = meta.login || {};
+  if (!m.redirect || !m.client || !window.crypto || DEV) return false;        // у себя Twitch выдуманный: уходить некуда
+  const state = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
+  try {
+    if (sessionStorage.getItem('lobby.login') === 'code') return false;       // прошлый возврат с Twitch не удался
+    sessionStorage.setItem('lobby.tw', JSON.stringify({ state, back: location.hash || '#/', at: Date.now() }));
+    if (!sessionStorage.getItem('lobby.tw')) return false;
+  } catch (e) { return false; }                                                // без памяти вкладки метку входа не сверить
+  location.href = `https://id.twitch.tv/oauth2/authorize?client_id=${encodeURIComponent(m.client)}&redirect_uri=${encodeURIComponent(BASE + '/twitch.html')}&response_type=token&scope=&state=${state}`;
+  return true;
+}
+
 let loginOpen = false;
 export async function login() {
   if (loginOpen) return;
+  if (loginRedirect()) return;
   loginOpen = true;
   // Вкладку Twitch открываем сразу по нажатию: после ожидания ответа браузер счёл бы её всплывающим окном.
   const tab = window.open('about:blank', '_blank');

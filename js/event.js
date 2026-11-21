@@ -1,13 +1,13 @@
 // Страница лобби. Правило одно: один шаг — одна главная кнопка.
 // Сверху «сцена»: что сейчас происходит и что нажать именно мне (игроку, капитану или ведущему).
 // Под ней комната: места капитанов, список игроков, команды, драфт героев.
-import { API, BASE, call, meta } from './api.js?v=20261122031934';
+import { API, BASE, call, meta } from './api.js?v=20261122032634';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, clock, toast, oops, modal, head, closeModal,
   confirmHold, copy, rankPicker, pickedRank, ICON, morph,
-} from './ui.js?v=20261122031934';
-import { user, login, linkSteam, onUser, want } from './auth.js?v=20261122031934';
-import { scoreHtml, gameRow, openGame, feudHtml, ceremony, closeCeremony, favHtml } from './score.js?v=20261122031934';
+} from './ui.js?v=20261122032634';
+import { user, login, linkSteam, onUser, want } from './auth.js?v=20261122032634';
+import { scoreHtml, gameRow, openGame, feudHtml, ceremony, closeCeremony, favHtml } from './score.js?v=20261122032634';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 const TEAM_GEN = { a: 'Янтаря', b: 'Сапфира' };
