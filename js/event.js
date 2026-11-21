@@ -1,13 +1,13 @@
 // Страница лобби. Правило одно: один шаг — одна главная кнопка.
 // Сверху «сцена»: что сейчас происходит и что нажать именно мне (игроку, капитану или ведущему).
 // Под ней комната: места капитанов, список игроков, команды, драфт героев.
-import { API, BASE, call, meta } from './api.js?v=20261121065955';
+import { API, BASE, call, meta } from './api.js?v=20261122025505';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, clock, toast, oops, modal, head, closeModal,
   confirmHold, copy, rankPicker, pickedRank, ICON, morph,
-} from './ui.js?v=20261121065955';
-import { user, login, linkSteam, onUser, want } from './auth.js?v=20261121065955';
-import { scoreHtml, gameRow, openGame } from './score.js?v=20261121065955';
+} from './ui.js?v=20261122025505';
+import { user, login, linkSteam, onUser, want } from './auth.js?v=20261122025505';
+import { scoreHtml, gameRow, openGame, feudHtml, ceremony, closeCeremony } from './score.js?v=20261122025505';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 const TEAM_GEN = { a: 'Янтаря', b: 'Сапфира' };
@@ -33,6 +33,7 @@ export function mountEvent(root, id, opt) {
   let making = false;       // бот создаёт лобби в игре: это несколько секунд
   let pvTimer = 0;
   let pvAt = 0;
+  let cerWait = 0;          // ждём точную таблицу матча, чтобы показать церемонию номинаций
   const pageTitle = document.title;
 
   const meId = () => (user.me ? user.me.id : null);
@@ -108,6 +109,7 @@ export function mountEvent(root, id, opt) {
     }
     render();
     resumeJoin();
+    ceremonyOnce();
     if (next.phase === 'closed' && es) { es.close(); es = null; }
   }
 
@@ -803,7 +805,41 @@ export function mountEvent(root, id, opt) {
   function scoreBlock() {
     const m = st.match;
     if (!m || !m.table || !['live', 'done'].includes(st.phase)) return '';
-    return scoreHtml(m.table, { me: opt.obs ? null : meId(), card: (u) => cards()[u] || null, win: m.result ? m.result.winner : null });
+    return scoreHtml(m.table, showOpt());
+  }
+  // чем таблица матча и церемония подписывают игроков; awards — номинации, которые сервер раздал по итоговой таблице
+  function showOpt() {
+    const m = st.match || {};
+    const r = m.result;
+    return { me: opt.obs ? null : meId(), card: (u) => cards()[u] || null, win: r ? r.winner : null, awards: opt.obs ? [] : st.awards || [],
+      sub: r ? `Победил ${TEAM[r.winner]}${r.duration ? ` · матч шёл ${clock(r.duration)}` : ''}` : '' };
+  }
+  // Церемония номинаций: один раз на игру, когда пришёл итог с таблицей. Если вкладка не на виду (игроки ещё в игре) —
+  // когда на неё вернутся: показывать сцену пустому экрану незачем.
+  function ceremonyOnce() {
+    const m = st.match;
+    if (opt.obs || st.phase !== 'done' || !m || !m.table || m.table.live || !(st.awards || []).length) return;
+    const key = `lobby.cer.${st.id}.${st.round}`;
+    try { if (sessionStorage.getItem(key)) return; } catch (e) { return; }
+    // Сразу после матча таблица бывает черновой — по последнему кадру трансляции, без отметки MVP и «кто кого»;
+    // точная приходит из итогов матча секунд через тридцать. Ждём её (до полутора минут), чтобы не показать церемонию без MVP.
+    const exact = Array.isArray(m.table.duels) || st.awards.some((a) => a.key === 'mvp');
+    const age = m.result && m.result.at ? now() - m.result.at : 999;
+    clearTimeout(cerWait);
+    if (!exact && age < 90) { cerWait = setTimeout(ceremonyOnce, (90 - age) * 1000 + 400); return; }
+    const go = () => {
+      if (dead || document.hidden || !st || st.phase !== 'done' || !st.match || !st.match.table) return;
+      document.removeEventListener('visibilitychange', go);
+      try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch (e) { return; }
+      ceremony(st.match.table, showOpt());
+    };
+    if (document.hidden) document.addEventListener('visibilitychange', go); else go();
+  }
+  // Кровная месть: объявляется, когда команды набраны, а после игры показывает, чем кончилось.
+  function feudBlock() {
+    if (opt.obs || !st.feud || !st.teams) return '';
+    const m = st.match;
+    return feudHtml(st.feud, { card: (u) => cards()[u] || null, team: teamOf }, st.phase === 'done' && m ? m.table : null);
   }
 
   function roomHtml() {
@@ -818,7 +854,7 @@ export function mountEvent(root, id, opt) {
     const mid = caps() && (ph === 'pick' || (st.queue.length && ['teams', 'lobby'].includes(ph)));
     const tail = !caps() && st.queue.length ? `<section class="card plist"><header><h2>Очередь</h2><span class="dim num">${st.queue.length}</span></header>
       <div class="pgrid">${st.queue.map((u, i) => slot(u, { pos: i + 1 })).join('')}</div></section>` : '';
-    return `${scoreBlock()}${bar}${heroesHtml()}${bansRow()}<div class="arena ${mid ? 'three' : 'two'}">${teamCol('a')}${mid ? poolCol() : ''}${teamCol('b')}</div>${tail}`;
+    return `${feudBlock()}${scoreBlock()}${bar}${heroesHtml()}${bansRow()}<div class="arena ${mid ? 'three' : 'two'}">${teamCol('a')}${mid ? poolCol() : ''}${teamCol('b')}</div>${tail}`;
   }
 
   // Доска драфта: лента ходов, слоты героев двух команд (без ников: игроки разберут героев сами после драфта),
@@ -1384,10 +1420,12 @@ export function mountEvent(root, id, opt) {
     dead = true;
     clearInterval(ticker);
     clearTimeout(pvTimer);
+    clearTimeout(cerWait);
     if (es) es.close();
     offUser();
     document.title = pageTitle;
     document.body.classList.remove('lobbypage');
+    closeCeremony();
     root.removeEventListener('click', onClick);
     for (const ev of ['dragstart', 'dragend', 'dragover', 'drop']) root.removeEventListener(ev, onDrag);
     closeModal();

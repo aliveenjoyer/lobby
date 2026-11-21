@@ -1,9 +1,9 @@
 // Профиль игрока — «досье»: сцена с главным героем игрока и его цифрами, ниже стиль игры, путь по рангам, форма,
 // герои, кастомки на сайте и последние матчи. Цифры считает сервер по открытым данным deadlock-api (server/stats.py);
 // здесь только вид. Картина на сцене — фон главного героя из самой игры (site/assets/herobg, см. tools/fetch_hero_art.py).
-import { meta } from './api.js?v=20261121065955';
-import { openGame } from './score.js?v=20261121065955';
-import { esc, ava, heroImg, heroName, badgeImg, badgeName, fmt, plural, clock, dateRu } from './ui.js?v=20261121065955';
+import { meta } from './api.js?v=20261122025505';
+import { openGame, AWARD_KEYS, awardTitle } from './score.js?v=20261122025505';
+import { esc, ava, heroImg, heroName, badgeImg, badgeName, fmt, plural, clock, dateRu } from './ui.js?v=20261122025505';
 
 const AXES = [['dmg', 'Урон'], ['farm', 'Фарм'], ['obj', 'Объекты'], ['sup', 'Поддержка'], ['tank', 'Стойкость'], ['surv', 'Выживаемость']];
 const MODE = { r: 'рейтинг', u: 'обычный', b: 'Street Brawl', c: 'кастомка', o: '' };
@@ -346,6 +346,9 @@ function customsSec(pl) {
   const rels = [];
   if (s.vic) rels.push(`<div class="cu-rel"><span>чаще всех убивал</span><b>${who(s.vic)}</b><em>${s.vic.n} ${plural(s.vic.n, 'раз', 'раза', 'раз')}</em></div>`);
   if (s.nem) rels.push(`<div class="cu-rel"><span>чаще всех погибал от</span><b>${who(s.nem)}</b><em>${s.nem.n} ${plural(s.nem.n, 'раз', 'раза', 'раз')}</em></div>`);
+  // титулы за номинации матча: «Мясник ×2, Банк»
+  const titles = AWARD_KEYS.filter((k) => s.aw && s.aw[k]).map((k) => `${awardTitle(k)}${s.aw[k] > 1 ? ' ×' + s.aw[k] : ''}`);
+  if (titles.length) rels.push(`<div class="cu-rel"><span>титулы</span><b>${esc(titles.slice(0, 4).join(', '))}</b>${titles.length > 4 ? `<em>и ещё ${titles.length - 4}</em>` : ''}</div>`);
   if (s.mate) rels.push(`<div class="cu-rel"><span>чаще всех в одной команде</span><b>${who(s.mate)}</b><em>${s.mate.n} ${plural(s.mate.n, 'игра', 'игры', 'игр')}, побед ${s.mate.w}</em></div>`);
   const heroes = (s.heroes || []).map((h) => `<em title="${esc(heroName(h[0]))}: побед ${h[2]}, поражений ${h[1] - h[2]}">${heroImg(h[0], 'm')}<b>${h[2]}–${h[1] - h[2]}</b></em>`).join('');
   const rows = (pl.games || []).map((g, i) => {

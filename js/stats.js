@@ -1,9 +1,9 @@
 // Статистика кастомок: кто сколько сыграл и выиграл, кто кого убивает, кто с кем играет, герои и рекорды.
 // Считает сервер по играм, сыгранным через лобби (server/customs.py); здесь только вид.
-import { call } from './api.js?v=20261121065955';
-import { esc, ava, heroImg, heroName, fmt, plural, clock, dateRu } from './ui.js?v=20261121065955';
-import { openGame } from './score.js?v=20261121065955';
-import { user } from './auth.js?v=20261121065955';
+import { call } from './api.js?v=20261122025505';
+import { esc, ava, heroImg, heroName, fmt, plural, clock, dateRu } from './ui.js?v=20261122025505';
+import { openGame, AWARD_KEYS, awardTitle } from './score.js?v=20261122025505';
+import { user } from './auth.js?v=20261122025505';
 
 const dec = (x, n) => Number(x).toFixed(n == null ? 1 : n).replace('.', ',');
 const num = (n) => fmt(n).replace(/\s/g, '<i class="nsp"></i>');
@@ -78,6 +78,17 @@ export function mountStats(view, host) {
       <div class="pf-panel cs-list">${rows}</div></section>`;
   }
 
+  // Титулы: кто чаще всех получал каждую номинацию матча (customs.awards считает их по итоговым таблицам)
+  function titlesHtml() {
+    const items = AWARD_KEYS.map((k) => {
+      const top = d.players.filter((p) => p.aw && p.aw[k]).sort((p, q) => q.aw[k] - p.aw[k] || p.g - q.g)[0];
+      return top ? `<div class="aw-i"><b class="aw-t">${awardTitle(k)}</b><span class="aw-w">${ava(top, 's')}${who(top.id)}</span>
+        <span class="aw-v">${top.aw[k]} ${plural(top.aw[k], 'раз', 'раза', 'раз')} за ${top.g} ${plural(top.g, 'игру', 'игры', 'игр')}</span></div>` : '';
+    }).filter(Boolean);
+    return items.length ? `<section class="pf-sec"><header><h2>Титулы</h2><span>кто чаще всех получал номинацию матча</span></header>
+      <div class="pf-panel aw-list">${items.join('')}</div></section>` : '';
+  }
+
   function recordsHtml() {
     if (!d.records.length) return '';
     const cards = d.records.map((r, i) => {
@@ -127,7 +138,7 @@ export function mountStats(view, host) {
         <div><b>${num(d.kills)}</b><span>${plural(d.kills, 'убийство', 'убийства', 'убийств')}</span></div></div>
       <section class="pf-sec"><header><h2>Игроки</h2><span>нажми на название колонки — список встанет по ней</span></header>
         <div class="pf-panel cs-table" id="cs-players">${playersHtml()}</div></section>
-      ${duelsHtml()}${matesHtml()}${recordsHtml()}${heroesHtml()}</div>`;
+      ${duelsHtml()}${matesHtml()}${titlesHtml()}${recordsHtml()}${heroesHtml()}</div>`;
   }
 
   view.innerHTML = '<div class="card empty">Загружаю…</div>';
