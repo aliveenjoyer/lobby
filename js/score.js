@@ -1,7 +1,9 @@
 // Таблица матча: живая, пока игра идёт, и итоговая после неё.
 // Одна и та же на странице лобби, в слое для OBS и в прошедших играх на странице ведущего.
-import { meta, call } from './api.js?v=20261122025505';
-import { esc, ava, heroImg, heroName, fmt, plural, clock, dateRu, modal, head } from './ui.js?v=20261122025505';
+import { meta, call } from './api.js?v=20261122030905';
+import { esc, ava, heroImg, heroName, fmt, plural, clock, dateRu, modal, head, toast, oops } from './ui.js?v=20261122030905';
+
+import { user, login } from './auth.js?v=20261122030905';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 // колонки с числами; opt — на телефоне прячутся
@@ -255,9 +257,10 @@ const AWARDS = {
   nemesis: ['Немезида', (v, to) => `убил ${to} ${times(v)}`],
   clean: ['Неуловимый', (v) => (v ? `погиб всего ${times(v)}` : 'ни разу не погиб')],
   deaths: ['Камикадзе', (v) => `погиб ${times(v)} — больше всех`],
+  fav: ['Любимец зрителей', () => 'приз зрительских симпатий'],          // не из таблицы: его дают голоса (favHtml)
 };
 // для страницы статистики и профиля: названия титулов в порядке показа
-export const AWARD_KEYS = ['mvp', 'kills', 'dmg', 'souls', 'assists', 'heal', 'obj', 'nemesis', 'clean', 'deaths'];
+export const AWARD_KEYS = ['mvp', 'fav', 'kills', 'dmg', 'souls', 'assists', 'heal', 'obj', 'nemesis', 'clean', 'deaths'];
 export const awardTitle = (key) => (AWARDS[key] ? AWARDS[key][0] : key);
 const rowName = (r, o) => { const c = r.uid && o.card ? o.card(r.uid) : null; return (c && c.name) || r.name || 'Игрок'; };
 const andList = (names) => (names.length > 1 ? `${names.slice(0, -1).join(', ')} и ${names[names.length - 1]}` : names[0]);
@@ -391,6 +394,67 @@ export function feudHtml(f, o, t) {
     <p class="fd-say">${say}</p></section>`;
 }
 
+// ---- приз зрительских симпатий: зрители и игроки голосуют за лучшего игрока сыгранной игры. Голосовать можно сутки:
+// окно в 30 секунд владелец назвал слишком коротким («вряд ли кто-то на сайт зайдёт в течение 30 секунд после катки»).
+// f — расклад с сервера (customs.fav_view): { open, until, n, mine, top: [[uid, голосов]] }; расклад виден после своего
+// голоса или когда голосование закрыто. g — игра: { event, round, teams, table }. o.me — uid зрителя.
+const favs = new Map();        // 'лобби:игра' -> { g, o }: чтобы перерисовать блок после голоса
+export function favHtml(f, g, o) {
+  o = o || {};
+  if (!f || !g || !g.teams) return '';
+  const rows = (g.table && g.table.rows) || [];
+  const people = [];
+  for (const k of ['a', 'b']) {
+    for (const p of g.teams[k] || []) {
+      if (p && p.uid) people.push({ uid: p.uid, name: p.name, team: k, hero: (rows.find((r) => r.uid === p.uid) || {}).hero || p.hero });
+    }
+  }
+  if (!people.length || (!f.open && !f.n)) return '';
+  const key = `${g.event}:${g.round}`;
+  favs.set(key, { g, o });
+  if (favs.size > 12) favs.delete(favs.keys().next().value);
+  const cnt = new Map(f.top || []);
+  const shown = !!(f.top && f.top.length);
+  const max = shown ? Math.max(1, f.top[0][1]) : 1;
+  const name = (uid) => (people.find((p) => p.uid === uid) || { name: 'игрок' }).name;
+  const left = Math.max(0, f.until - Date.now() / 1000);
+  const hours = left >= 3600 ? `${Math.round(left / 3600)} ч` : `${Math.max(1, Math.round(left / 60))} мин`;
+  let say;
+  if (!f.open) {
+    const best = f.top.filter((x) => x[1] === f.top[0][1]).map((x) => name(x[0]));
+    say = `Голосование закрыто. Приз ${best.length > 1 ? 'делят' : 'достался'} <b>${esc(andList(best))}</b> — ${f.top[0][1]} из ${f.n} ${plural(f.n, 'голоса', 'голосов', 'голосов')}.`;
+  } else if (f.mine) say = `Твой голос — <b>${esc(name(f.mine))}</b>. Передумать можно, пока голосование открыто: ещё ${hours}.`;
+  else say = `Кто был лучшим в этой игре? Нажми на игрока — голосовать можно ещё ${hours}.${f.n ? ` Уже ${f.n} ${plural(f.n, 'голос', 'голоса', 'голосов')}.` : ''}`;
+  const chip = (p) => {
+    const n = cnt.get(p.uid) || 0;
+    const won = !f.open && shown && n === f.top[0][1];
+    return `<button class="fav-p ${p.team} ${f.mine === p.uid ? 'on' : ''} ${won ? 'won' : ''}" data-fav="${esc(p.uid)}"${f.open && p.uid !== o.me ? '' : ' disabled'}>
+      ${heroImg(p.hero, 'm')}<b>${esc(p.name)}</b>${shown && n ? `<span class="num">${n}</span><i style="width:${Math.round((100 * n) / max)}%"></i>` : ''}</button>`;
+  };
+  return `<section class="fav" data-favkey="${esc(key)}"><div class="fav-h"><b>Приз зрительских симпатий</b></div>
+    <p class="fav-say">${say}</p><div class="fav-list">${people.map(chip).join('')}</div></section>`;
+}
+if (typeof document !== 'undefined' && !window.lobbyFav) {
+  window.lobbyFav = true;
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest && e.target.closest('[data-fav]');
+    const box = b && b.closest('[data-favkey]');
+    const x = box && favs.get(box.dataset.favkey);
+    if (!x || b.disabled) return;
+    e.preventDefault();
+    if (!user.me) { login(); return; }
+    try {
+      const r = await call(`/games/${x.g.event}/${x.g.round}`, { fav: b.dataset.fav });
+      x.g.fav = r.fav;
+      toast('Голос принят');
+      const now = document.querySelector(`[data-favkey="${box.dataset.favkey}"]`);
+      if (now) now.outerHTML = favHtml(r.fav, x.g, Object.assign({}, x.o, { me: user.me.id }));
+      // страница лобби перерисовывается сама — пусть знает новый расклад
+      document.dispatchEvent(new CustomEvent('lobby:fav', { detail: { key: box.dataset.favkey, fav: r.fav } }));
+    } catch (err) { oops(err); }
+  });
+}
+
 // ---- прошедшие игры: строка в списке и окно с таблицей
 // m — строка списка игр с сервера: { event, round, at, winner, duration, title, kills: [a, b] | null, table: есть ли она }
 // день и время, когда игра закончилась: в один вечер игр бывает несколько
@@ -420,11 +484,12 @@ export async function openGame(m, o) {
     const bans = (g.bans || []).length ? `<p class="gbans"><span class="dim">Баны</span>${g.bans.map((h) => heroImg(h, 'm')).join('')}</p>` : '';
     const side = (uid) => (((g.teams && g.teams.a) || []).some((p) => p.uid === uid) ? 'a' : 'b');
     const sub = `Победил ${TEAM[g.winner] || ''}${m.duration ? ` · матч шёл ${clock(m.duration)}` : ''}`;
-    box.outerHTML = g.table && g.table.rows && g.table.rows.length
+    const tipLine = g.predict ? `<p class="gtip">Прогноз зрителей: за Янтарь ${g.predict.a}, за Сапфир ${g.predict.b} — угадали ${g.predict.right} из ${g.predict.a + g.predict.b}.${g.predict.mine ? (g.predict.pts ? ` Твой прогноз сошёлся: +${g.predict.pts}.` : ' Твой прогноз не сошёлся.') : ''}</p>` : '';
+    box.outerHTML = tipLine + favHtml(g.fav, g, { me: o && o.me }) + (g.table && g.table.rows && g.table.rows.length
       ? feudHtml(g.feud, { card: (uid) => people.get(uid) || null, team: side }, g.table)
         + scoreHtml(Object.assign({}, g.table, { live: false }), { win: g.winner, me: o && o.me, login: (uid) => (people.get(uid) || {}).login || '', awards: g.awards, sub }) + bans
       : `<p class="dim">Таблицы этой игры нет: её сайт ведёт только у матчей, за которыми смог проследить.</p>
-         <p><b class="w a">Янтарь:</b> ${names('a')}</p><p><b class="w b">Сапфир:</b> ${names('b')}</p>`;
+         <p><b class="w a">Янтарь:</b> ${names('a')}</p><p><b class="w b">Сапфир:</b> ${names('b')}</p>`);
   } catch (e) {
     box.textContent = 'Не получилось загрузить игру. Попробуй ещё раз.';
   }

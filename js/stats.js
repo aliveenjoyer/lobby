@@ -1,9 +1,9 @@
 // Статистика кастомок: кто сколько сыграл и выиграл, кто кого убивает, кто с кем играет, герои и рекорды.
 // Считает сервер по играм, сыгранным через лобби (server/customs.py); здесь только вид.
-import { call } from './api.js?v=20261122025505';
-import { esc, ava, heroImg, heroName, fmt, plural, clock, dateRu } from './ui.js?v=20261122025505';
-import { openGame, AWARD_KEYS, awardTitle } from './score.js?v=20261122025505';
-import { user } from './auth.js?v=20261122025505';
+import { call } from './api.js?v=20261122030905';
+import { esc, ava, heroImg, heroName, fmt, plural, clock, dateRu } from './ui.js?v=20261122030905';
+import { openGame, AWARD_KEYS, awardTitle } from './score.js?v=20261122030905';
+import { user } from './auth.js?v=20261122030905';
 
 const dec = (x, n) => Number(x).toFixed(n == null ? 1 : n).replace('.', ',');
 const num = (n) => fmt(n).replace(/\s/g, '<i class="nsp"></i>');
@@ -89,6 +89,17 @@ export function mountStats(view, host) {
       <div class="pf-panel aw-list">${items.join('')}</div></section>` : '';
   }
 
+  // Прогнозисты: зрители, которые угадывают победителя (customs.predictors)
+  function tipsHtml() {
+    const t = d.tips || [];
+    if (!t.length) return '';
+    const rows = t.slice(0, 10).map((x, i) => `<div class="cs-mate"><span class="cs-pair"><span class="cs-no ${i < 3 ? 'top' : ''}">${i + 1}</span>${ava(x, 's')}</span>
+      <span class="cs-names">${x.login ? `<a class="plink" href="#/u/${esc(x.login)}">${esc(x.name)}</a>` : esc(x.name)}${x.streak > 1 ? ` <em>${x.streak} подряд</em>` : ''}</span>
+      <span class="cs-wl"><b>${x.pts} ${plural(x.pts, 'очко', 'очка', 'очков')}</b><i><em style="width:${pct(x.right, x.n)}%"></em></i><small>${x.right} из ${x.n}</small></span></div>`).join('');
+    return `<section class="pf-sec"><header><h2>Прогнозисты</h2><span>зрители, которые угадывают победителя: верный прогноз — очко, победа тех, кто слабее, — два</span></header>
+      <div class="pf-panel cs-list">${rows}</div></section>`;
+  }
+
   function recordsHtml() {
     if (!d.records.length) return '';
     const cards = d.records.map((r, i) => {
@@ -138,7 +149,7 @@ export function mountStats(view, host) {
         <div><b>${num(d.kills)}</b><span>${plural(d.kills, 'убийство', 'убийства', 'убийств')}</span></div></div>
       <section class="pf-sec"><header><h2>Игроки</h2><span>нажми на название колонки — список встанет по ней</span></header>
         <div class="pf-panel cs-table" id="cs-players">${playersHtml()}</div></section>
-      ${duelsHtml()}${matesHtml()}${titlesHtml()}${recordsHtml()}${heroesHtml()}</div>`;
+      ${duelsHtml()}${matesHtml()}${titlesHtml()}${tipsHtml()}${recordsHtml()}${heroesHtml()}</div>`;
   }
 
   view.innerHTML = '<div class="card empty">Загружаю…</div>';

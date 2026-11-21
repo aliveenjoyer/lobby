@@ -1436,6 +1436,53 @@ a.cs-who:hover b { text-decoration: underline; text-underline-offset: 3px; }
   .fd-p .ava { display: none; }
 }
 
+/* Трибуна (22.11): прогноз зрителей — полоса из двух половин, они же кнопки; приз зрительских симпатий. */
+.tip { margin-bottom: 16px; padding: 14px 18px 16px; border-radius: 18px; background: var(--glass); }
+.tip-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 10px; }
+.tip-h b { font-size: 16px; font-weight: 700; }
+.tip-h span { margin-left: auto; font-size: 13px; color: var(--dim); }
+.tip-row { display: grid; grid-template-columns: var(--wa, 50%) minmax(0, 1fr); gap: 4px; transition: grid-template-columns .5s cubic-bezier(.2, .7, .2, 1); }
+.tip-b { position: relative; display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 58px; padding: 0 18px; border: 0; color: var(--text); font: inherit; cursor: pointer; overflow: hidden; }
+.tip-b.a { border-radius: 14px 5px 5px 14px; background: linear-gradient(90deg, rgba(212, 134, 11, .52), rgba(212, 134, 11, .2)); }
+.tip-b.b { flex-direction: row-reverse; border-radius: 5px 14px 14px 5px; background: linear-gradient(270deg, rgba(77, 117, 195, .58), rgba(77, 117, 195, .22)); }
+.tip-b b { font-size: 19px; font-weight: 800; letter-spacing: -.025em; white-space: nowrap; }
+.tip-b .num { font: 600 15px/1 var(--mono); color: rgba(255, 255, 255, .78); }
+.tip-b em { padding: 4px 9px; border-radius: 999px; background: #fff; color: #000; font-style: normal; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.tip-b.on { box-shadow: inset 0 0 0 2px #fff; }
+.tip-b.won b::after { content: " — победа"; font-weight: 600; }
+.tip-b:disabled { cursor: default; }
+.tip.can .tip-b:hover { filter: brightness(1.28); }
+.tip.can .tip-b:active { transform: translateY(1px); }
+.tip-n { margin: 10px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--dim); }
+
+.fav { margin-bottom: 16px; padding: 14px 18px 16px; border-radius: 18px; background: var(--glass); }
+.fav-h b { font-size: 16px; font-weight: 700; }
+.fav-say { margin: 4px 0 12px; font-size: 14px; line-height: 1.45; color: var(--dim); }
+.fav-say b { color: var(--text); font-weight: 600; }
+.fav-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; }
+.fav-p { --tc: var(--amber); position: relative; isolation: isolate; display: flex; align-items: center; gap: 9px; min-width: 0; min-height: 44px; padding: 6px 12px 6px 8px;
+  border: 0; border-radius: 12px; background: rgba(255, 255, 255, .055); color: var(--text); font: inherit; font-size: 14.5px; text-align: left; cursor: pointer; overflow: hidden; }
+.fav-p.b { --tc: var(--sapph); }
+.fav-p b { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fav-p .num { font: 600 13.5px/1 var(--mono); color: var(--dim); }
+.fav-p i { position: absolute; left: 0; top: 0; bottom: 0; z-index: -1; background: color-mix(in srgb, var(--tc) 30%, transparent); transition: width .5s cubic-bezier(.2, .7, .2, 1); }
+.fav-p:not(:disabled):hover { background: rgba(255, 255, 255, .11); }
+.fav-p.on { box-shadow: inset 0 0 0 2px #fff; }
+.fav-p.won { box-shadow: inset 0 0 0 2px var(--tc); }
+.fav-p:disabled { cursor: default; }
+.gamebody .fav { margin: 0 0 10px; background: rgba(255, 255, 255, .035); }
+.gtip { margin: 0 0 10px; font-size: 14px; color: var(--dim); }
+@media (max-width: 640px) {
+  .tip, .fav { padding: 12px 12px 14px; }
+  .tip-h span { margin-left: 0; }
+  .tip-b { min-height: 54px; padding: 0 12px; gap: 8px; }
+  .tip-b b { font-size: 16.5px; }
+  .tip-b em { display: none; }
+  .tip-b.won b::after { content: ""; }
+  .fav-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fav-p { padding: 6px 8px; font-size: 13.5px; }
+}
+
 /* ---------- телефон */
 @media (max-width: 1400px) { .poolcol .slot .mains { display: none; } }
 @media (max-width: 1100px) { .lobby { grid-template-columns: minmax(0, 1fr); } }

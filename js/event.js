@@ -1,13 +1,13 @@
 // Страница лобби. Правило одно: один шаг — одна главная кнопка.
 // Сверху «сцена»: что сейчас происходит и что нажать именно мне (игроку, капитану или ведущему).
 // Под ней комната: места капитанов, список игроков, команды, драфт героев.
-import { API, BASE, call, meta } from './api.js?v=20261122025505';
+import { API, BASE, call, meta } from './api.js?v=20261122030905';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, clock, toast, oops, modal, head, closeModal,
   confirmHold, copy, rankPicker, pickedRank, ICON, morph,
-} from './ui.js?v=20261122025505';
-import { user, login, linkSteam, onUser, want } from './auth.js?v=20261122025505';
-import { scoreHtml, gameRow, openGame, feudHtml, ceremony, closeCeremony } from './score.js?v=20261122025505';
+} from './ui.js?v=20261122030905';
+import { user, login, linkSteam, onUser, want } from './auth.js?v=20261122030905';
+import { scoreHtml, gameRow, openGame, feudHtml, ceremony, closeCeremony, favHtml } from './score.js?v=20261122030905';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 const TEAM_GEN = { a: 'Янтаря', b: 'Сапфира' };
@@ -34,6 +34,7 @@ export function mountEvent(root, id, opt) {
   let pvTimer = 0;
   let pvAt = 0;
   let cerWait = 0;          // ждём точную таблицу матча, чтобы показать церемонию номинаций
+  let favOf = null;         // { key: 'лобби:игра', g: запись игры | null } — приз зрительских симпатий сыгранной игры
   const pageTitle = document.title;
 
   const meId = () => (user.me ? user.me.id : null);
@@ -107,6 +108,7 @@ export function mountEvent(root, id, opt) {
         : a ? `Голоса получил только ${card(a).name}. Второй капитан может вызваться сам`
           : 'Никто не проголосовал: капитаны не выбраны', !a);
     }
+    loadFav();
     render();
     resumeJoin();
     ceremonyOnce();
@@ -835,6 +837,51 @@ export function mountEvent(root, id, opt) {
     };
     if (document.hidden) document.addEventListener('visibilitychange', go); else go();
   }
+  // Прогноз зрителей (трибуна): кто победит. Полоса из двух половин — они же кнопки. Игроки этой игры не голосуют.
+  function predictBlock() {
+    const p = st.predict;
+    if (opt.obs || !p || !st.teams) return '';
+    const uid = meId();
+    const mine = (pv && pv.predict) || null;
+    const n = p.a + p.b;
+    const res = st.match && st.match.result;
+    if (res && !n) return '';
+    const player = !!uid && st.seats.includes(uid);
+    const can = p.open && !player && !res;
+    const pa = n ? Math.round((100 * p.a) / n) : 50;
+    const wa = n ? Math.min(72, Math.max(28, pa)) : 50;                    // половина не уже 28 %: название не должно сжаться
+    const ch = st.sums && st.sums.chance != null ? st.sums.chance : null;
+    const under = ch == null ? null : ch <= 45 ? 'a' : ch >= 55 ? 'b' : null;       // чья победа была бы неожиданной (customs.UPSET)
+    let title = 'Кто победит?';
+    let note = '';
+    if (res) {
+      title = `Угадали ${res.winner === 'a' ? p.a : p.b} из ${n}`;
+      note = mine ? (mine === res.winner ? 'Твой прогноз сошёлся — очки уже в таблице прогнозистов.' : 'Твой прогноз не сошёлся.') : '';
+    } else if (!p.open) { title = 'Прогнозы закрыты'; note = mine ? `Твой прогноз — ${TEAM[mine]}.` : ''; }
+    else if (player) note = 'Это для зрителей: игроки этой игры прогноз не делают.';
+    else if (mine) note = `Твой прогноз — ${TEAM[mine]}. Передумать можно до пятой минуты матча.`;
+    else note = `Нажми на команду. Угадал — очко в таблице прогнозистов${under ? `; за победу «${TEAM_GEN[under]}» дают два: по силе он слабее` : ''}.`;
+    const half = (k, pct) => `<button class="tip-b ${k} ${mine === k ? 'on' : ''} ${res && res.winner === k ? 'won' : ''}" data-act="tip_${k}"${can ? '' : ' disabled'}>
+        <b>${TEAM[k]}</b>${n ? `<span class="num">${pct}%</span>` : ''}${mine === k ? '<em>твой прогноз</em>' : ''}</button>`;
+    return `<section class="tip ${can ? 'can' : ''}"><div class="tip-h"><b>${title}</b>
+        <span>${n} ${plural(n, 'прогноз', 'прогноза', 'прогнозов')} зрителей${ch == null ? '' : ` · по силе команд ${ch} на ${100 - ch}`}</span></div>
+      <div class="tip-row" style="--wa:${wa}%">${half('a', pa)}${half('b', 100 - pa)}</div>${note ? `<p class="tip-n">${note}</p>` : ''}</section>`;
+  }
+  // Приз зрительских симпатий: запись сыгранной игры берём с сервера один раз, когда появился итог.
+  function loadFav() {
+    const r = st.match && st.match.result;
+    if (opt.obs || st.phase !== 'done' || !r) { favOf = null; return; }
+    const key = `${st.id}:${st.round}`;
+    if (favOf && favOf.key === key) return;
+    favOf = { key, g: null };
+    call(`/games/${st.id}/${st.round}`).then((g) => { if (!dead && favOf && favOf.key === key) { favOf.g = g; render(); } })
+      .catch(() => { /* игра с тестовыми игроками в историю не идёт — голосовать не за что */ });
+  }
+  const onFav = (e) => { if (favOf && favOf.g && e.detail && e.detail.key === favOf.key) favOf.g.fav = e.detail.fav; };
+  document.addEventListener('lobby:fav', onFav);
+  function favBlock() {
+    return favOf && favOf.g && st.phase === 'done' ? favHtml(favOf.g.fav, favOf.g, { me: meId() }) : '';
+  }
   // Кровная месть: объявляется, когда команды набраны, а после игры показывает, чем кончилось.
   function feudBlock() {
     if (opt.obs || !st.feud || !st.teams) return '';
@@ -854,7 +901,7 @@ export function mountEvent(root, id, opt) {
     const mid = caps() && (ph === 'pick' || (st.queue.length && ['teams', 'lobby'].includes(ph)));
     const tail = !caps() && st.queue.length ? `<section class="card plist"><header><h2>Очередь</h2><span class="dim num">${st.queue.length}</span></header>
       <div class="pgrid">${st.queue.map((u, i) => slot(u, { pos: i + 1 })).join('')}</div></section>` : '';
-    return `${feudBlock()}${scoreBlock()}${bar}${heroesHtml()}${bansRow()}<div class="arena ${mid ? 'three' : 'two'}">${teamCol('a')}${mid ? poolCol() : ''}${teamCol('b')}</div>${tail}`;
+    return `${predictBlock()}${favBlock()}${feudBlock()}${scoreBlock()}${bar}${heroesHtml()}${bansRow()}<div class="arena ${mid ? 'three' : 'two'}">${teamCol('a')}${mid ? poolCol() : ''}${teamCol('b')}</div>${tail}`;
   }
 
   // Доска драфта: лента ходов, слоты героев двух команд (без ников: игроки разберут героев сами после драфта),
@@ -1288,7 +1335,18 @@ export function mountEvent(root, id, opt) {
 
   // ------------------------------------------------------------ нажатия
   const claim = async (k) => { const r = await act('cap_claim', { team: k }); if (r) toast(`Ты капитан «${TEAM_GEN[r.team]}»`); };
+  // Прогноз зрителя. Общий счёт сервер рассылает раз в несколько секунд, поэтому свой ответ применяем сразу.
+  const tip = async (k) => {
+    const r = await act('predict', { team: k });
+    if (!r) return;
+    st.predict = r.predict;
+    if (pv) pv.predict = r.mine;
+    render();
+    toast(`Твой прогноз — ${TEAM[k]}`);
+  };
   const ACTS = {
+    tip_a: () => tip('a'),
+    tip_b: () => tip('b'),
     login: () => { want.set('lobby', id); login(); },
     steam: () => { want.set('lobby', id); if (user.me) linkSteam(); else login(); },
     join: async () => {
@@ -1421,6 +1479,7 @@ export function mountEvent(root, id, opt) {
     clearInterval(ticker);
     clearTimeout(pvTimer);
     clearTimeout(cerWait);
+    document.removeEventListener('lobby:fav', onFav);
     if (es) es.close();
     offUser();
     document.title = pageTitle;
