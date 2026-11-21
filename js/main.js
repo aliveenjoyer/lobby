@@ -1,15 +1,15 @@
 // Лобби: маршруты, шапка, главная, профиль, страница ведущего.
-import { call, meta, loadMeta, session } from './api.js?v=20261122030905';
+import { call, meta, loadMeta, session } from './api.js?v=20261122031934';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, toast, oops, modal, head, confirmHold, closeModal,
   ICON, dateRu,
-} from './ui.js?v=20261122030905';
-import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261122030905';
-import { mountEvent } from './event.js?v=20261122030905';
-import { profileBlocks, profileClick } from './profile.js?v=20261122030905';
-import { gameRow, openGame } from './score.js?v=20261122030905';
-import { mountStats } from './stats.js?v=20261122030905';
-import { signupHtml, signupClick, openSignup, resumeSignup } from './signup.js?v=20261122030905';
+} from './ui.js?v=20261122031934';
+import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261122031934';
+import { mountEvent } from './event.js?v=20261122031934';
+import { profileBlocks, profileClick } from './profile.js?v=20261122031934';
+import { gameRow, openGame } from './score.js?v=20261122031934';
+import { mountStats } from './stats.js?v=20261122031934';
+import { signupHtml, signupClick, openSignup, resumeSignup } from './signup.js?v=20261122031934';
 
 const view = $('#view');
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };

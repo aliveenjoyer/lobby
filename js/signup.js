@@ -6,11 +6,11 @@
 // Правило блока — одна кнопка и за руку (его же слова: «супер удобно, в одну кнопку… за ручку прям вело… лишних
 // подтверждений не было»): человек жмёт «Записаться» один раз. Если нужен вход через Twitch или Steam, кнопка ведёт
 // туда, а запись потом завершается сама (auth.js: want) — второй раз «Записаться» жать не надо. Шаги видны полоской.
-import { call } from './api.js?v=20261122030905';
+import { call } from './api.js?v=20261122031934';
 import {
   esc, ava, badgeImg, badgeName, fmt, toast, oops, confirmHold, ICON, startText, countdown, askStart,
-} from './ui.js?v=20261122030905';
-import { user, login, linkSteam, want } from './auth.js?v=20261122030905';
+} from './ui.js?v=20261122031934';
+import { user, login, linkSteam, want } from './auth.js?v=20261122031934';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 const btn = (act, label, cls) => `<button class="btn ${cls || ''}" data-su="${act}">${label}</button>`;

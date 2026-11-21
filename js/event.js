@@ -1,13 +1,13 @@
 // Страница лобби. Правило одно: один шаг — одна главная кнопка.
 // Сверху «сцена»: что сейчас происходит и что нажать именно мне (игроку, капитану или ведущему).
 // Под ней комната: места капитанов, список игроков, команды, драфт героев.
-import { API, BASE, call, meta } from './api.js?v=20261122030905';
+import { API, BASE, call, meta } from './api.js?v=20261122031934';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, clock, toast, oops, modal, head, closeModal,
   confirmHold, copy, rankPicker, pickedRank, ICON, morph,
-} from './ui.js?v=20261122030905';
-import { user, login, linkSteam, onUser, want } from './auth.js?v=20261122030905';
-import { scoreHtml, gameRow, openGame, feudHtml, ceremony, closeCeremony, favHtml } from './score.js?v=20261122030905';
+} from './ui.js?v=20261122031934';
+import { user, login, linkSteam, onUser, want } from './auth.js?v=20261122031934';
+import { scoreHtml, gameRow, openGame, feudHtml, ceremony, closeCeremony, favHtml } from './score.js?v=20261122031934';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 const TEAM_GEN = { a: 'Янтаря', b: 'Сапфира' };
@@ -55,7 +55,12 @@ export function mountEvent(root, id, opt) {
     ? new Set(st.prelim.games[0].a.concat(st.prelim.games[0].b)) : null);
   const nm = (uid) => esc(card(uid).name);
   // ранг берётся только из игры; если его там нет — так и пишем (калибровка: рейтинг уже играет, ранг ещё не выдан)
-  const rankLine = (c) => (c.badge ? `${esc(badgeName(c.badge))}${c.pts != null && !opt.obs ? ' · <span class="num">' + fmt(c.pts) + '</span>' : ''}`
+  // Режимы вечера (владелец 22.11: «режимы вечера, кнопку у ведущего, обратный драфт, слепой набор, случайные игроки»).
+  const rndTeams = () => caps() && !!st.settings.random_teams;          // команды раздаёт жребий, капитанов нет
+  // Слепой набор: пока капитаны набирают команды, ранги и сила скрыты у всех, кроме ведущего. Прячет страница:
+  // это игра на честность, а не защита — данные в ответе сервера остаются.
+  const blind = () => !!st.settings.blind && caps() && !st.settings.random_teams && ['gather', 'pick'].includes(st.phase) && !isHost();
+  const rankLine = (c) => (blind() ? 'ранг скрыт' : c.badge ? `${esc(badgeName(c.badge))}${c.pts != null && !opt.obs ? ' · <span class="num">' + fmt(c.pts) + '</span>' : ''}`
     : (c.flags || []).includes('calib') ? 'без ранга: калибровка' : 'без ранга');
   function voteCount() {
     const cnt = {};
@@ -102,6 +107,9 @@ export function mountEvent(root, id, opt) {
     if (!prev || !pv || isHost() || whereOf(prev, uid) !== whereOf(next, uid) || !!prev.lobby !== !!next.lobby
         || (prev.lobby && next.lobby && prev.lobby.at !== next.lobby.at) || (uid && prev.staff[uid] !== next.staff[uid])) getPrivate();
     if (!next.draft || next.draft.done) selHero = null;
+    if (prev && prev.phase === 'pick' && next.phase === 'teams' && next.settings.blind && next.sums && !opt.obs) {
+      toast(`Слепой набор окончен, ранги открыты. Сила команд: ${fmt(next.sums.a)} против ${fmt(next.sums.b)}`);
+    }
     if (prev && prev.voting && !next.voting && next.phase === 'gather' && !opt.obs) {
       const { a, b } = next.caps;
       toast(a && b ? `Капитаны выбраны: ${card(a).name} и ${card(b).name}`
@@ -163,20 +171,24 @@ export function mountEvent(root, id, opt) {
     const chips = [`${s.size} на ${s.size}`];
     if (s.mode !== 'normal') chips.push(meta.modes[s.mode] || s.mode);
     chips.push(meta.regions[s.region] || s.region);
-    chips.push(caps() ? 'команды набирают капитаны' : 'команды делит сайт');
-    if (s.draft !== 'none') chips.push('драфт: ' + (s.draft === 'bans' ? 'только баны' : 'баны и пики'));
+    chips.push(!caps() ? 'команды делит сайт' : s.random_teams ? 'команды раздаёт жребий' : 'команды набирают капитаны');
+    if (s.draft !== 'none' && s.draft !== 'random') chips.push('драфт: ' + (s.draft === 'bans' ? 'только баны' : 'баны и пики'));
     if (st.round > 1) chips.push('игра ' + st.round);
+    const modes = [];                                           // режимы вечера — заметнее обычных пометок
+    if (s.reverse && s.draft === 'full') modes.push('обратный драфт');
+    if (s.blind && caps() && !s.random_teams) modes.push('слепой набор');
+    if (s.draft === 'random') modes.push('случайные герои');
     const live = st.host.live ? `<a class="chip live" href="https://twitch.tv/${esc(st.host.login)}" target="_blank" rel="noopener">LIVE</a>` : '';
     return `<div class="ehead">${ava(st.host, 'm')}
       <div class="t"><h1>${esc(st.title)}</h1>
-      <div class="chips">${live}${chips.map((c) => `<span class="chip">${esc(c)}</span>`).join('')}
+      <div class="chips">${live}${chips.map((c) => `<span class="chip">${esc(c)}</span>`).join('')}${modes.map((c) => `<span class="chip emark">${esc(c)}</span>`).join('')}
       <a class="chip" href="#/${esc(st.host.login)}">страница ${esc(st.host.name)}</a>
       ${isHost() ? '<span class="chip">смотрят <span data-viewers></span></span>' : ''}</div></div></div>`;
   }
 
   function stepList() {
     const list = [['gather', 'Запись'], ['teams', 'Команды']];
-    if (st.settings.draft !== 'none') list.push(['draft', 'Драфт героев']);
+    if (st.settings.draft !== 'none') list.push(['draft', st.settings.draft === 'random' ? 'Герои' : 'Драфт героев']);
     list.push(['game', 'Игра']);
     const ph = st.phase;
     const cur = ph === 'gather' ? 'gather' : ph === 'pick' ? 'teams' : ph === 'teams' ? (st.draft ? 'draft' : 'teams') : 'game';
@@ -325,11 +337,11 @@ export function mountEvent(root, id, opt) {
         g.tone = step.team;
         if (actor && actor === uid) {
           g.now = true;
-          g.title = step.t === 'ban' ? 'Твой ход: забань героя' : 'Твой ход: возьми героя команде';
-          g.text = `Нажми на героя в сетке ниже, потом на кнопку «${step.t === 'ban' ? 'Забанить' : 'Взять'}». ${over ? 'Идёт дополнительное время твоей команды' : 'Выйдет время хода — пойдёт дополнительное время команды'}: кончится и оно — ${step.t === 'ban' ? 'бан пропадёт' : 'герой возьмётся случайный'}.`;
+          g.title = step.t === 'ban' ? 'Твой ход: забань героя' : d.reverse ? 'Твой ход: выбери героя сопернику' : 'Твой ход: возьми героя команде';
+          g.text = `${step.t === 'pick' && d.reverse ? `Обратный драфт: героя, которого ты выберешь, получит команда «${TEAM[step.team === 'a' ? 'b' : 'a']}». ` : ''}Нажми на героя в сетке ниже, потом на кнопку «${step.t === 'ban' ? 'Забанить' : d.reverse ? 'Отдать сопернику' : 'Взять'}». ${over ? 'Идёт дополнительное время твоей команды' : 'Выйдет время хода — пойдёт дополнительное время команды'}: кончится и оно — ${step.t === 'ban' ? 'бан пропадёт' : 'герой возьмётся случайный'}.`;
         } else {
           g.title = 'Драфт героев';
-          g.text = `${step.t === 'ban' ? 'Банит' : 'Берёт героя'} команда «${TEAM[step.team]}»${actor ? `, капитан ${nm(actor)}` : ''}.${over ? ' Идёт её дополнительное время.' : ''}${host ? ' Можешь сходить за капитана: выбери героя в сетке.' : ' Кто на ком играет, команды решат после драфта.'}`;
+          g.text = `${step.t === 'ban' ? 'Банит' : d.reverse ? 'Выбирает героя сопернику' : 'Берёт героя'} команда «${TEAM[step.team]}»${actor ? `, капитан ${nm(actor)}` : ''}.${over ? ' Идёт её дополнительное время.' : ''}${host ? ' Можешь сходить за капитана: выбери героя в сетке.' : ' Кто на ком играет, команды решат после драфта.'}`;
         }
         if (host) g.quiet = [Q('draft_off', 'Сбросить драфт')];
         return g;
@@ -346,13 +358,19 @@ export function mountEvent(root, id, opt) {
           g.btns = [P('balance', 'Поделить заново')];
         } else if (needDraft) {
           g.title = 'Команды собраны';
-          g.text = `Дальше драфт героев: по ${s.bans} ${plural(s.bans, 'бану', 'бана', 'банов')} с каждой стороны${s.draft === 'full' ? ', потом капитаны по одному берут героев командам' : ''}.`;
-          g.btns = [P('draft', 'Начать драфт')];
+          if (s.draft === 'random') {
+            g.text = 'Дальше — случайные герои: без драфта и банов, сайт сам выдаст каждому игроку героя.';
+            g.btns = [P('draft', 'Раздать героев')];
+          } else {
+            g.text = `Дальше ${s.reverse && s.draft === 'full' ? 'обратный драфт' : 'драфт героев'}: по ${s.bans} ${plural(s.bans, 'бану', 'бана', 'банов')} с каждой стороны${s.draft === 'full' ? (s.reverse ? ', потом капитаны по одному выбирают героев сопернику' : ', потом капитаны по одному берут героев командам') : ''}.`;
+            g.btns = [P('draft', 'Начать драфт')];
+          }
         } else {
-          const share = sharing ? `Игроки разбирают героев: заняли ${got} из ${st.seats.length}.${k && !mine ? ' Займи героя и ты — нажми на него ниже.' : ''} ` : '';
+          const share = !sharing ? '' : d.random ? 'Героев раздал жребий. '
+            : `Игроки разбирают героев: заняли ${got} из ${st.seats.length}.${k && !mine ? ' Займи героя и ты — нажми на него ниже.' : ''} `;
           const manual = [making ? P('lobby_bot', '<span class="spin"></span><span>Создаю лобби…</span>', ' disabled') : P('lobby_bot', 'Создать лобби в игре'),
             S('lobby_manual', 'Ввести код вручную')];
-          g.title = d ? 'Драфт окончен' : 'Команды собраны';
+          g.title = d ? (d.random ? 'Герои розданы' : 'Драфт окончен') : 'Команды собраны';
           if (st.lobby_wait) {                                // сайт уже создаёт лобби сам
             g.title = 'Создаю лобби в игре…';
             g.text = `${share}Бот открывает кастомную игру в Deadlock — это несколько секунд. Потом у игроков появится кнопка «Подключиться к лобби».`;
@@ -368,7 +386,7 @@ export function mountEvent(root, id, opt) {
             g.btns = manual;
           }
         }
-        g.quiet = caps() ? [Q('unteam', 'Вернуться к записи')]
+        g.quiet = caps() ? [d && d.random && !st.lobby_wait ? Q('reroll', 'Раздать героев заново') : '', Q('unteam', 'Вернуться к записи')]
           : [st.dirty ? '' : Q('balance', 'Поделить заново'), Q('unteam', 'Вернуться к набору'),
             chk ? btn('check_off', `Отменить проверку готовности · <span class="timer mono" data-until="${chk.until}"></span>`, 'ghost') : Q('check', 'Проверить готовность')];
         return g;
@@ -381,14 +399,15 @@ export function mountEvent(root, id, opt) {
           g.text = 'Нажми на героя своей команды ниже — так вы решаете, кто на ком играет. Поменяться можно, пока матч не начался.';
         } else if (sharing) {
           g.title = `Твой герой — ${heroName(mine)}`;
-          g.text = `Передумал — нажми на другого свободного героя своей команды. ${st.lobby_wait ? 'Сайт создаёт лобби в игре: сейчас появится кнопка «Подключиться к лобби».' : 'Ждём лобби в игре.'}`;
+          g.text = `${d.random ? 'Героя выдал жребий: поменяться нельзя.' : 'Передумал — нажми на другого свободного героя своей команды.'} ${st.lobby_wait ? 'Сайт создаёт лобби в игре: сейчас появится кнопка «Подключиться к лобби».' : 'Ждём лобби в игре.'}`;
         } else {
           g.title = `Ты в команде «${TEAM[k] || '…'}»`;
-          g.text = needDraft ? 'Ждём, когда ведущий начнёт драфт героев.' : 'Ждём лобби в игре: появится кнопка «Подключиться к лобби».';
+          g.text = needDraft ? (s.draft === 'random' ? 'Ждём, когда ведущий раздаст героев: их определит жребий.' : 'Ждём, когда ведущий начнёт драфт героев.')
+            : 'Ждём лобби в игре: появится кнопка «Подключиться к лобби».';
         }
         return g;
       }
-      g.title = d ? 'Драфт окончен' : 'Команды собраны';
+      g.title = d ? (d.random ? 'Герои розданы' : 'Драфт окончен') : 'Команды собраны';
       if (w === 'queue') g.text = caps() ? 'Ты в запасе: если кто-то выйдет, капитан возьмёт игрока оттуда. На следующую игру запись общая.' : 'Ты в очереди: освободится место — сядешь сразу.';
       else offerJoin(caps() ? 'Можно записаться в запас и на следующую игру.' : 'Освободится место — займёшь его.');
       return g;
@@ -405,7 +424,7 @@ export function mountEvent(root, id, opt) {
         const need = st.settings.size - st.teams[turn].length;
         const win = st.pick.window || [];
         g.title = 'Твой ход: возьми игрока';
-        g.text = `Нажми «Взять» у игрока в колонке «Свободные игроки». Тебе осталось взять ${need}.${win.length < free ? ' Выбираешь из тех, чья очередь играть: они записались раньше.' : ''}${g.timer ? ' Не успеешь — сайт возьмёт сильнейшего.' : ''}`;
+        g.text = `Нажми «Взять» у игрока в колонке «Свободные игроки». Тебе осталось взять ${need}.${win.length < free ? ' Выбираешь из тех, чья очередь играть: они записались раньше.' : ''}${blind() ? ' Набор слепой: ранги откроются, когда команды будут набраны.' : ''}${g.timer ? ' Не успеешь — сайт возьмёт сильнейшего.' : ''}`;
       } else if (host && !free) {
         g.timer = null;
         g.title = 'Свободных игроков нет';
@@ -442,6 +461,20 @@ export function mountEvent(root, id, opt) {
     const nReady = st.queue.filter(isReady).length;
     const { a: ca, b: cb } = st.caps;
     const mine = uid ? st.votes[uid] : null;
+    const rnd = rndTeams();
+    if (rnd && host && nPool >= 2) {                            // случайные команды: капитаны не нужны, раздаёт ведущий
+      if (nReady < 2) {
+        g.title = 'Ждём, пока игроки отметят «готов»';
+        g.text = `Записались ${nPool}, готовы ${nReady}. Жребий раздаёт только готовых.`;
+        g.btns = [S('copy_link', 'Скопировать ссылку для чата')];
+        g.uses = ['copy_link'];
+      } else {
+        g.title = 'Команды раздаст жребий';
+        g.text = `Готовы ${nReady}${nReady > cap() ? ` — в игру пойдут ${st.settings.priority !== false ? 'первые' : 'случайные'} ${cap()}` : nReady < cap() ? ` из ${cap()}: команды получатся неполными` : ''}. Нажми — сайт случайно поделит их на две команды.`;
+        g.btns = [P('random_teams', 'Раздать команды')];
+      }
+      return g;
+    }
     if (voting) {
       const voters = st.queue.filter((u) => st.ready.includes(u));        // живые готовые игроки
       const voted = voters.filter((u) => st.votes[u]).length;
@@ -489,7 +522,8 @@ export function mountEvent(root, id, opt) {
       if (blocked && roleOf(uid) !== 'caster') { g.title = blocked.title; g.text = blocked.text; g.btns = blocked.btns; return g; }
       const pre = uid ? (st.signup || []).indexOf(uid) : -1;
       offerJoin(pre >= 0 ? `Ты записывался заранее, твой номер — ${pre + 1}. Заходи: в списке встанешь по порядку записи, впереди тех, кто записался позже.`
-        : `${nPool ? `Уже записались ${nPool}. ` : ''}Запишись игроком — или сразу нажми «Стать капитаном» ниже и набирай свою команду.`);
+        : rnd ? `${nPool ? `Уже записались ${nPool}. ` : ''}Запишись: сегодня команды раздаёт жребий.`
+          : `${nPool ? `Уже записались ${nPool}. ` : ''}Запишись игроком — или сразу нажми «Стать капитаном» ниже и набирай свою команду.`);
       return g;
     }
     const cp = capOf(uid);
@@ -503,14 +537,15 @@ export function mountEvent(root, id, opt) {
     if (!st.ready.includes(uid)) {
       g.now = true;
       g.title = st.round > 1 ? `Игра ${st.round}. Играешь?` : 'Ты в списке. Готов играть?';
-      g.text = 'Капитаны берут только тех, кто отметил «готов».';
+      g.text = rnd ? 'Жребий раздаёт по командам только тех, кто отметил «готов».' : 'Капитаны берут только тех, кто отметил «готов».';
       g.btns = [P('ready_on', 'Я готов')];
       g.uses = ['ready_on'];
       return g;
     }
     g.title = 'Ты в списке игроков';
-    g.text = ca && cb ? 'Капитаны выбраны. Ждём, когда ведущий начнёт набор команд.'
-      : 'Ждём двух капитанов. Хочешь набирать команду сам — нажми «Стать капитаном» ниже.';
+    g.text = rnd ? 'Сегодня без капитанов: команды раздаст жребий. Ждём, когда ведущий нажмёт «Раздать команды».'
+      : ca && cb ? 'Капитаны выбраны. Ждём, когда ведущий начнёт набор команд.'
+        : 'Ждём двух капитанов. Хочешь набирать команду сам — нажми «Стать капитаном» ниже.';
     return g;
   }
 
@@ -610,7 +645,7 @@ export function mountEvent(root, id, opt) {
     const ph = st.phase;
     const hasBots = Object.values(st.cards).some((c) => c.bot);
     const b = [];
-    if (!['live', 'done'].includes(ph)) b.push(['settings', 'Настройки'], ['guest', 'Добавить гостя']);
+    if (!['live', 'done'].includes(ph)) b.push(['settings', 'Настройки'], ['modes', 'Режим вечера'], ['guest', 'Добавить гостя']);
     if (ph === 'gather') b.push(hasBots ? ['bots_clear', 'Убрать тестовых'] : ['bots', 'Тестовые игроки']);
     if (ph === 'gather' && caps() && !st.voting && st.ready.length > 1) b.push(['ready_reset', 'Переспросить готовность']);
     // кнопки «Слой для OBS» здесь больше нет (владелец 16.11: «он не нужен вообще»); сама страница жива: /#/obs/<логин ведущего>
@@ -666,7 +701,7 @@ export function mountEvent(root, id, opt) {
     return `<button class="slot ${uid === meId() ? 'me-row' : ''} ${o.cap ? 'capn' : ''} ${o.pool && !isReady(uid) ? 'idle' : ''}" data-uid="${esc(uid)}"${drag}>
       ${dot}${o.pos ? `<span class="pos">${o.pos}</span>` : ''}${ava(c)}
       <span class="who"><span class="nm"><b>${esc(c.name)}</b>${tags.join('')}</span><span class="sub">${rankLine(c)}</span></span>
-      ${right}${o.extra || ''}${badgeImg(c.badge)}</button>`;
+      ${right}${o.extra || ''}${blind() ? '' : badgeImg(c.badge)}</button>`;
   }
 
   // Свободное место. Когда сайт делит по рангу — нажал и сел; в командах капитанов это просто пустая строка.
@@ -690,7 +725,7 @@ export function mountEvent(root, id, opt) {
         const off = opt.obs ? '' : c === uid ? '<span class="mini" role="button" data-act="cap_drop">Отказаться</span>'
           : host ? `<span class="mini" role="button" data-act="cap_free_${k}">Снять</span>` : '';
         body = `<button class="capwho" data-uid="${esc(c)}">${ava(p, 'm')}
-          <span class="who"><b>${esc(p.name)}</b><span class="sub">${rankLine(p)}${cnt[c] ? ` · ${cnt[c]} ${plural(cnt[c], 'голос', 'голоса', 'голосов')}` : ''}</span></span>${off}${badgeImg(p.badge)}</button>`;
+          <span class="who"><b>${esc(p.name)}</b><span class="sub">${rankLine(p)}${cnt[c] ? ` · ${cnt[c]} ${plural(cnt[c], 'голос', 'голоса', 'голосов')}` : ''}</span></span>${off}${blind() ? '' : badgeImg(p.badge)}</button>`;
       } else if (st.voting) body = '<div class="capfree"><span>Решит голосование</span></div>';
       else if (opt.obs || mineCap) body = '<div class="capfree"><span>Капитана пока нет</span></div>';
       else {
@@ -731,7 +766,7 @@ export function mountEvent(root, id, opt) {
   // на две ровные команды. Это прикидка: настоящие команды наберут капитаны (или поделит ведущий).
   function prelimBlock() {
     const p = st.prelim;
-    if (!p || !p.games.length || st.phase !== 'gather' || opt.obs) return '';
+    if (!p || !p.games.length || st.phase !== 'gather' || opt.obs || blind() || rndTeams()) return '';
     const side = (k, ids, sum) => `<div class="pl-side ${k}"><div class="pl-h"><span class="tn">${TEAM[k]}</span><span class="num">сила ${fmt(sum)}</span></div>
       ${ids.map((u) => { const c = card(u); return `<button class="pl-p ${u === meId() ? 'mine' : ''}" data-uid="${esc(u)}">${ava(c, 's')}<b>${esc(c.name)}</b>${badgeImg(c.badge)}</button>`; }).join('')}</div>`;
     const games = p.games.map((g, i) => `<div class="pl-game"><div class="pl-t"><b>${p.games.length > 1 ? `Игра ${i + 1}` : 'Первая игра'}</b><span class="dim">${esc(g.words || '')}</span></div>
@@ -749,7 +784,7 @@ export function mountEvent(root, id, opt) {
     for (let i = list.length; i < size; i++) rows.push(freeSlot(i === list.length));
     return `<section class="card team ${k} ${turn ? 'turn' : ''} ${res && res.winner === k ? 'win' : ''}" data-team="${k}">
       <header><span class="tn">${TEAM[k]}${res && res.winner === k ? ' — победа' : ''}</span>
-      <span class="ts num">${st.sums && !opt.obs ? 'сила ' + fmt(st.sums[k]) : `${list.length} из ${size}`}</span></header>
+      <span class="ts num">${st.sums && !opt.obs && !blind() ? 'сила ' + fmt(st.sums[k]) : `${list.length} из ${size}`}</span></header>
       <div class="slots">${rows.join('')}</div></section>`;
   }
 
@@ -891,7 +926,7 @@ export function mountEvent(root, id, opt) {
 
   function roomHtml() {
     const ph = st.phase;
-    if (!st.teams) return caps() ? (ph === 'closed' ? '' : capsBlock() + playersBlock() + prelimBlock()) : seatsBlock();
+    if (!st.teams) return caps() ? (ph === 'closed' ? '' : (rndTeams() ? '' : capsBlock()) + playersBlock() + prelimBlock()) : seatsBlock();
     const d = st.draft;
     // во время драфта составы команд видны сразу, над доской: люди должны видеть, кто с кем (просьба владельца на живой
     // игре 16.11: «нажал драфт героев, и всё, нет списка команд»; второй список под доской он попросил убрать)
@@ -918,9 +953,12 @@ export function mountEvent(root, id, opt) {
     const over = !!step && d.over != null;
     const tname = (k) => (t[k].length ? 'Команда ' + nm(t[k][0]) : TEAM[k]);
     const strip = d.steps.map((x, i) => `<i class="${x.team} ${d.done || i < d.i ? 'done' : i === d.i ? 'cur' : ''}">${x.t === 'ban' ? 'бан' : 'пик'}</i>`).join('');
-    const count = (k) => d.steps.filter((x) => x.t === 'pick' && x.team === k).length;
+    // обратный драфт: герой, взятый на ходу команды, достаётся сопернику — доска показывает, кто на чём будет играть
+    const rev = !!d.reverse;
+    const forTeam = (x) => (rev ? (x.team === 'a' ? 'b' : 'a') : x.team);
+    const count = (k) => d.steps.filter((x) => x.t === 'pick' && forTeam(x) === k).length;
     const picks = (k) => {
-      const cur = step && step.t === 'pick' && step.team === k ? d.picks[k].length : -1;
+      const cur = step && step.t === 'pick' && forTeam(step) === k ? d.picks[k].length : -1;
       let out = '';
       for (let i = 0; i < count(k); i++) {
         const h = d.picks[k][i];
@@ -939,27 +977,27 @@ export function mountEvent(root, id, opt) {
     const reserve = (k) => `<div class="dres ${over && step.team === k ? 'on' : ''}" title="Дополнительное время команды на весь драфт">доп. время
       ${over && step.team === k ? `<b class="mono" data-until="${d.until}"></b>` : `<b class="mono">${clock(d.reserve[k])}</b>`}</div>`;
     const mid = step
-      ? `<div class="dkind ${step.team}">${step.t === 'ban' ? 'Бан' : 'Выбор героя'}</div>
+      ? `<div class="dkind ${step.team}">${step.t === 'ban' ? 'Бан' : rev ? 'Герой сопернику' : 'Выбор героя'}</div>
          <div class="dclock mono ${over ? 'over' : ''}" data-until="${d.until}"></div>
          <div class="dwho">${over ? 'идёт дополнительное время' : capUid ? 'ходит ' + nm(capUid) : ''}${can && meId() === capUid ? ' — твой ход' : ''}</div>`
       : `<div class="dkind">Драфт окончен</div><div class="dwho">${d.mode === 'full' ? 'Игроки разбирают героев' : 'Берите героев в игре'}</div>`;
     let go = '';
     if (step && can) {
       go = selHero && !banned.has(selHero)
-        ? btn('draft_go', `${step.t === 'ban' ? 'Забанить' : 'Взять'}: ${esc(heroName(selHero))}`, 'primary xl')
+        ? btn('draft_go', `${step.t === 'ban' ? 'Забанить' : rev ? 'Отдать сопернику' : 'Взять'}: ${esc(heroName(selHero))}`, 'primary xl')
         : `<span class="dim">Выбери героя ниже${isHost() && meId() !== capUid && capUid ? ': ты ходишь за ' + nm(capUid) : ''}</span>`;
     } else if (step) go = '<span class="dim">Ждём хода капитана</span>';
     const tiles = d.done ? '' : meta.heroes.map((h) => {
       const ban = banned.has(h.id);
       const by = taken.a.has(h.id) ? 'a' : taken.b.has(h.id) ? 'b' : null;
       // одинаковые герои разрешены — чужой выбор не мешает, повторяться нельзя только в своей команде
-      const off = ban || (step.t === 'pick' && (st.settings.dup ? taken[step.team].has(h.id) : !!by));
+      const off = ban || (step.t === 'pick' && (st.settings.dup ? taken[forTeam(step)].has(h.id) : !!by));
       const cls = [off ? 'off' : '', selHero === h.id ? 'sel' : '', can ? '' : 'idle'].join(' ');
       const mark = ban ? '<em class="x">бан</em>' : by ? `<em class="${by}">взят</em>` : '';
       return `<button class="hcard ${cls}" data-hero="${h.id}" ${can && !off ? '' : 'tabindex="-1"'}>
         ${h.card || h.icon ? `<img src="${esc(h.card || h.icon)}" alt="" loading="lazy">` : ''}<span>${esc(h.name)}</span>${mark}</button>`;
     }).join('');
-    return `<section class="card draft2">${d.done ? '' : `<div class="dstrip">${strip}</div>`}
+    return `<section class="card draft2">${rev && !d.done ? '<div class="dnote">Обратный драфт: капитаны выбирают героев сопернику. В колонке команды — то, на чём ей играть.</div>' : ''}${d.done ? '' : `<div class="dstrip">${strip}</div>`}
       <div class="dhead"><b class="a">${tname('a')}</b><span>VS</span><b class="b">${tname('b')}</b></div>
       <div class="dboard"><div class="dside a"><div class="dpicks" style="--n:${Math.max(count('a'), 1)}">${picks('a')}</div><div class="dbans">${d.done ? '' : reserve('a')}${bans('a')}</div></div>
         <div class="dmid">${mid}</div>
@@ -1256,6 +1294,39 @@ export function mountEvent(root, id, opt) {
     });
   }
 
+  // Режим вечера: четыре переключателя одной кнопкой у ведущего. Обратный драфт и случайные герои вместе не бывают
+  // (герои либо выбираются, либо выпадают), слепой набор и случайные команды — тоже (слепым бывает набор капитанами).
+  function modesModal() {
+    const s = st.settings;
+    const items = [
+      ['reverse', 'Обратный драфт', 'Капитаны выбирают героев не себе, а сопернику.', !!s.reverse && s.draft === 'full'],
+      ['blind', 'Слепой набор', 'Пока капитаны набирают команды, ранги игроков скрыты. Откроются, когда команды собраны.', !!s.blind && !s.random_teams],
+      ['random_teams', 'Случайные команды', 'Без капитанов: ты жмёшь «Раздать команды», и сайт делит игроков жребием.', !!s.random_teams],
+      ['random_heroes', 'Случайные герои', 'Без драфта и банов: сайт сам выдаёт каждому игроку героя.', s.draft === 'random'],
+    ];
+    const tile = ([k, title, text, on]) => `<label class="emode ${on ? 'on' : ''}"><input type="checkbox" name="${k}" ${on ? 'checked' : ''}>
+      <b>${title}</b><span>${text}</span></label>`;
+    const m = modal(`${head('Режим вечера')}<form class="body" id="modes-form">
+      <p class="dim" style="margin-bottom:12px">Включи один или несколько. Игроки увидят режим в шапке лобби.${caps() ? '' : ' Режимы набора работают, когда команды набирают капитаны: сейчас их делит сайт.'}</p>
+      <div class="emodes">${items.map(tile).join('')}</div></form>
+      <footer><button class="btn" data-close>Отмена</button><button class="btn primary" id="modes-save">Сохранить</button></footer>`);
+    const box = (n) => m.el.querySelector(`input[name=${n}]`);
+    const CLASH = { reverse: 'random_heroes', random_heroes: 'reverse', blind: 'random_teams', random_teams: 'blind' };
+    m.el.addEventListener('change', (e) => {
+      const n = e.target.name;
+      if (e.target.checked && CLASH[n]) box(CLASH[n]).checked = false;
+      for (const l of m.el.querySelectorAll('.emode')) l.classList.toggle('on', l.querySelector('input').checked);
+    });
+    $('#modes-save', m.el).addEventListener('click', async () => {
+      const on = (n) => box(n).checked;
+      const draft = on('random_heroes') ? 'random' : on('reverse') ? 'full' : s.draft === 'random' ? 'full' : s.draft;
+      if (!await act('settings', { settings: { reverse: on('reverse'), blind: on('blind'), random_teams: on('random_teams'), draft } })) return;
+      m.close();
+      const names = items.filter((x) => on(x[0])).map((x) => x[1].toLowerCase());
+      toast(names.length ? `Режим вечера: ${names.join(', ')}` : 'Режимы вечера выключены');
+    });
+  }
+
   // Организатор назначает ведущего или кастера по логину Twitch (игрока из списка — и из его карточки).
   function staffModal() {
     const m = modal(`${head('Назначить в администрацию')}<div class="body">
@@ -1368,6 +1439,9 @@ export function mountEvent(root, id, opt) {
     vote_open: () => act('vote_open'),
     vote_close: () => act('vote_close'),
     pick_start: () => act('pick_start'),
+    random_teams: async () => { if (await act('random_teams')) toast('Команды розданы жребием'); },
+    reroll: async () => { if (await act('draft', { on: false })) await act('draft', { on: true }); },
+    modes: () => modesModal(),
     pick_done: () => act('pick_done'),
     bots: async () => { const r = await act('bots'); if (r) toast(`Тестовых игроков добавлено: ${r.added}. Они голосуют и ходят сами`); },
     bots_clear: async () => { if (await act('bots_clear')) toast('Тестовые игроки убраны'); },
@@ -1453,6 +1527,7 @@ export function mountEvent(root, id, opt) {
     const h = e.target.closest('[data-hero]');
     if (h && !h.classList.contains('off') && !h.classList.contains('idle')) { selHero = +h.dataset.hero === selHero ? null : +h.dataset.hero; render(); return; }
     const s = e.target.closest('[data-uid]');
+    if (s && !opt.obs && blind()) { toast('Слепой набор: ранги и статистика откроются, когда команды будут набраны'); return; }
     if (s && !opt.obs) playerModal(s.dataset.uid);
   }
   let listAt = 0;           // когда в последний раз нажимали «Взять» или «Голос»
