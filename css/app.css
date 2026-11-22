@@ -526,6 +526,33 @@ body.obs::before { display: none; }
 .btn.sapph { border-color: rgba(77, 117, 195, .6); background: rgba(77, 117, 195, .16); }
 .btn.sapph:hover { border-color: var(--sapph); background: rgba(77, 117, 195, .26); box-shadow: 0 0 26px rgba(77, 117, 195, .3); }
 .btn.ok { border-color: transparent; background: rgba(92, 201, 122, .14); }
+
+/* канал владельца в шапке (23.11): Telegram, донат, Twitch. Как цветные кнопки лёгкого вида (.btn.amber/.sapph):
+   заливка и полупрозрачная рамка в цвет сервиса, при наведении рамка целиком и свет. Размер — как «Войти» (.btn.sm).
+   Три одной ширины: сетка даёт каждой колонке ширину самой длинной. Узкая шапка — одни значки. */
+.tch { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; flex: none; }
+.tch a { --c: 42, 171, 238; --hi: #c4e8ff;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 8px;
+  border: 1px solid rgba(var(--c), .5); background: rgba(var(--c), .13); color: var(--hi); font-weight: 500; font-size: 13px;
+  white-space: nowrap; transition: background .12s, border-color .12s, box-shadow .12s; }
+.tch a:hover { border-color: rgb(var(--c)); background: rgba(var(--c), .22); box-shadow: 0 0 26px rgba(var(--c), .26); }
+.tch svg { width: 15px; height: 15px; flex: none; fill: rgb(var(--c)); }
+.tch .tch-da { --c: 255, 138, 30; --hi: #ffd9b0; }
+.tch .tch-tw { --c: 145, 70, 255; --hi: #dccaff; }
+.tch .tch-tw svg { fill: #a970ff; }
+/* у ведущего в шапке четыре раздела и имя: подписи кнопок только на широком экране, имя прячется раньше,
+   а разделы уходят раньше телефонного (на телефоне их нет и так) — иначе разделы наезжают на кнопки */
+@media (max-width: 1199px) {
+  .tch a { width: 30px; padding: 0; }
+  .tch span { display: none; }
+}
+@media (max-width: 1000px) {
+  .me span { display: none; }
+  .me { padding: 4px; }
+}
+@media (max-width: 780px) { .top nav { display: none; } }
+@media (max-width: 400px) { .top .wrap { gap: 12px; } }
+@media (max-width: 350px) { .tch { gap: 4px; } .tch a { width: 28px; } }
 .btn.danger:hover { background: rgba(224, 87, 79, .14); }
 .input, select.input, textarea.input { background-color: rgba(0, 0, 0, .28); }
 .chip { border: 0; background: var(--glass2); }

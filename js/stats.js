@@ -1,9 +1,9 @@
 // Статистика кастомок: кто сколько сыграл и выиграл, кто кого убивает, кто с кем играет, герои и рекорды.
 // Считает сервер по играм, сыгранным через лобби (server/customs.py); здесь только вид.
-import { call } from './api.js?v=20261122033334';
-import { esc, ava, heroImg, heroName, fmt, plural, clock, dateRu } from './ui.js?v=20261122033334';
-import { openGame, AWARD_KEYS, awardTitle } from './score.js?v=20261122033334';
-import { user } from './auth.js?v=20261122033334';
+import { call } from './api.js?v=20261123012950';
+import { esc, ava, heroImg, heroName, fmt, plural, clock, dateRu } from './ui.js?v=20261123012950';
+import { openGame, AWARD_KEYS, awardTitle } from './score.js?v=20261123012950';
+import { user } from './auth.js?v=20261123012950';
 
 const dec = (x, n) => Number(x).toFixed(n == null ? 1 : n).replace('.', ',');
 const num = (n) => fmt(n).replace(/\s/g, '<i class="nsp"></i>');

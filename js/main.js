@@ -1,15 +1,15 @@
 // Лобби: маршруты, шапка, главная, профиль, страница ведущего.
-import { call, meta, loadMeta, session } from './api.js?v=20261122033334';
+import { call, meta, loadMeta, session } from './api.js?v=20261123012950';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, toast, oops, modal, head, confirmHold, closeModal,
   ICON, dateRu,
-} from './ui.js?v=20261122033334';
-import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261122033334';
-import { mountEvent } from './event.js?v=20261122033334';
-import { profileBlocks, profileClick } from './profile.js?v=20261122033334';
-import { gameRow, openGame } from './score.js?v=20261122033334';
-import { mountStats } from './stats.js?v=20261122033334';
-import { signupHtml, signupClick, openSignup, resumeSignup } from './signup.js?v=20261122033334';
+} from './ui.js?v=20261123012950';
+import { user, onUser, refreshMe, login, logout, linkSteam, setUser } from './auth.js?v=20261123012950';
+import { mountEvent } from './event.js?v=20261123012950';
+import { profileBlocks, profileClick } from './profile.js?v=20261123012950';
+import { gameRow, openGame } from './score.js?v=20261123012950';
+import { mountStats } from './stats.js?v=20261123012950';
+import { signupHtml, signupClick, openSignup, resumeSignup } from './signup.js?v=20261123012950';
 
 const view = $('#view');
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
@@ -31,6 +31,13 @@ function leave() {
   if (unmount) { unmount(); unmount = null; }
 }
 
+// канал владельца сайта в шапке: Telegram, донат, Twitch — три кнопки одной ширины (стили .tch в app.css)
+const CHANNEL = `<div class="tch" role="group" aria-label="Канал aliveenjoyer">
+  <a class="tch-tg" href="https://t.me/aliveenjoyer" target="_blank" rel="noopener" title="Telegram-канал aliveenjoyer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.4 3.3 2.7 10.5c-1.1.4-1.1 1.1-.1 1.4l4.7 1.5 1.8 5.6c.2.7.4.8.9.8.4 0 .6-.2.9-.5l2.4-2.3 4.8 3.5c.9.5 1.5.2 1.7-.8l3.1-14.8c.3-1.3-.5-1.9-1.5-1.6Zm-3.2 3.9-8.6 7.8-.4 3.4-1.3-4.2 9.8-6.6c.5-.3.8 0 .5.4Z"/></svg><span>Telegram</span></a>
+  <a class="tch-da" href="https://www.donationalerts.com/r/aliveenjoyer" target="_blank" rel="noopener" title="Закинуть донат aliveenjoyer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.2-4.4-9.4-9.1C1 8.5 3.2 4.6 7 4.6c2.2 0 3.8 1.2 5 2.9 1.2-1.7 2.8-2.9 5-2.9 3.8 0 6 3.9 4.4 7.3C19.2 16.6 12 21 12 21Z"/></svg><span>Донат</span></a>
+  <a class="tch-tw" href="https://twitch.tv/aliveenjoyer" target="_blank" rel="noopener" title="Стрим aliveenjoyer на Twitch"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.6 2.5 3 6.6v13.6h4.6v2.5h2.6l2.5-2.5h3.7l5.1-5.1V2.5H4.6Zm14.9 11.6-2.9 2.9H12l-2.5 2.5V17H5.7V4.2h13.8v9.9ZM16.6 7.3h-1.8v5.2h1.8V7.3Zm-4.8 0H10v5.2h1.8V7.3Z"/></svg><span>Twitch</span></a>
+</div>`;
+
 function top() {
   const me = user.me;
   const p = parts();
@@ -39,6 +46,7 @@ function top() {
   if (me && me.can_host) nav.push(`<a href="#/${esc(me.login)}" class="${p[0] === me.login ? 'on' : ''}">Моё лобби</a>`);
   if (me) nav.push(`<a href="#/me" class="${p[0] === 'me' ? 'on' : ''}">Мой профиль${me.apps ? `<i class="cnt" title="Заявки ведущих ждут ответа">${me.apps}</i>` : ''}</a>`);
   $('#top').innerHTML = `<a class="brand" href="#/"><i></i><span>Лобби</span></a><nav>${nav.join('')}</nav><span class="sp"></span>
+    ${CHANNEL}
     ${me ? `<a class="me" href="#/me" title="Профиль">${ava(me, 's')}<span>${esc(me.name)}</span></a>`
     : `<button class="btn primary sm" id="top-login">${ICON.twitch}<span>Войти</span></button>`}`;
   const b = $('#top-login');
