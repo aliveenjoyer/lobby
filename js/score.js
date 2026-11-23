@@ -1,9 +1,9 @@
 // Таблица матча: живая, пока игра идёт, и итоговая после неё.
 // Одна и та же на странице лобби, в слое для OBS и в прошедших играх на странице ведущего.
-import { meta, call } from './api.js?v=20261123075649';
-import { esc, ava, heroImg, heroName, fmt, plural, clock, dateRu, modal, head, toast, oops } from './ui.js?v=20261123075649';
+import { meta, call } from './api.js?v=20261124064928';
+import { esc, ava, heroImg, heroName, fmt, plural, clock, dateRu, modal, head, toast, oops } from './ui.js?v=20261124064928';
 
-import { user, login } from './auth.js?v=20261123075649';
+import { user, login } from './auth.js?v=20261124064928';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 // колонки с числами; opt — на телефоне прячутся

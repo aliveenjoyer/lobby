@@ -394,6 +394,11 @@ body.lobbypage .wrap { max-width: 1440px; }
 .hcard em { position: absolute; z-index: 1; top: 6px; left: 6px; padding: 2px 6px; border-radius: 5px; font: 600 10px/1.3 var(--font); font-style: normal;
   text-transform: uppercase; letter-spacing: .05em; background: #2a2a2a; color: var(--dim); }
 .hcard em.x { background: rgba(224, 87, 79, .9); color: #fff; }
+.hcard em.lim { background: rgba(255, 255, 255, .9); color: #000; }      /* за сутки банили дважды — в бан нельзя */
+.dnob { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 8px; margin: -4px 0 14px; font-size: 13.5px; color: var(--dim); }
+.dnob span { margin-right: 4px; }
+.dnob i { display: inline-flex; }
+.dnob .hero.m { width: 28px; height: 28px; filter: grayscale(.6); }
 .hcard em.a { background: var(--amber); color: #000; }
 .hcard em.b { background: var(--sapph); color: #fff; }
 

@@ -1,9 +1,9 @@
 // Профиль игрока — «досье»: сцена с главным героем игрока и его цифрами, ниже стиль игры, путь по рангам, форма,
 // герои, кастомки на сайте и последние матчи. Цифры считает сервер по открытым данным deadlock-api (server/stats.py);
 // здесь только вид. Картина на сцене — фон главного героя из самой игры (site/assets/herobg, см. tools/fetch_hero_art.py).
-import { meta } from './api.js?v=20261123075649';
-import { openGame, AWARD_KEYS, awardTitle } from './score.js?v=20261123075649';
-import { esc, ava, heroImg, heroName, badgeImg, badgeName, fmt, plural, clock, dateRu } from './ui.js?v=20261123075649';
+import { meta } from './api.js?v=20261124064928';
+import { openGame, AWARD_KEYS, awardTitle } from './score.js?v=20261124064928';
+import { esc, ava, heroImg, heroName, badgeImg, badgeName, fmt, plural, clock, dateRu } from './ui.js?v=20261124064928';
 
 const AXES = [['dmg', 'Урон'], ['farm', 'Фарм'], ['obj', 'Объекты'], ['sup', 'Поддержка'], ['tank', 'Стойкость'], ['surv', 'Выживаемость']];
 const MODE = { r: 'рейтинг', u: 'обычный', b: 'Street Brawl', c: 'кастомка', o: '' };

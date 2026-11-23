@@ -1,6 +1,6 @@
 // Вход через Twitch (по коду, как в кликере) и привязка Steam.
-import { call, session, BASE, meta, DEV } from './api.js?v=20261123075649';
-import { modal, head, oops, esc, $, ICON, toast } from './ui.js?v=20261123075649';
+import { call, session, BASE, meta, DEV } from './api.js?v=20261124064928';
+import { modal, head, oops, esc, $, ICON, toast } from './ui.js?v=20261124064928';
 
 export const user = { me: null };
 const subs = new Set();

@@ -1,13 +1,13 @@
 // Страница лобби. Правило одно: один шаг — одна главная кнопка.
 // Сверху «сцена»: что сейчас происходит и что нажать именно мне (игроку, капитану или ведущему).
 // Под ней комната: места капитанов, список игроков, команды, драфт героев.
-import { API, BASE, call, meta } from './api.js?v=20261123075649';
+import { API, BASE, call, meta } from './api.js?v=20261124064928';
 import {
   $, esc, ava, badgeImg, badgeName, heroImg, heroName, fmt, plural, clock, toast, oops, modal, head, closeModal,
   confirmHold, copy, rankPicker, pickedRank, ICON, morph,
-} from './ui.js?v=20261123075649';
-import { user, login, linkSteam, onUser, want } from './auth.js?v=20261123075649';
-import { scoreHtml, gameRow, openGame, feudHtml, ceremony, closeCeremony, favHtml } from './score.js?v=20261123075649';
+} from './ui.js?v=20261124064928';
+import { user, login, linkSteam, onUser, want } from './auth.js?v=20261124064928';
+import { scoreHtml, gameRow, openGame, feudHtml, ceremony, closeCeremony, favHtml } from './score.js?v=20261124064928';
 
 const TEAM = { a: 'Янтарь', b: 'Сапфир' };
 const TEAM_GEN = { a: 'Янтаря', b: 'Сапфира' };
@@ -373,12 +373,12 @@ export function mountEvent(root, id, opt) {
           g.title = d ? (d.random ? 'Герои розданы' : 'Драфт окончен') : 'Команды собраны';
           if (st.lobby_wait) {                                // сайт уже создаёт лобби сам
             g.title = 'Создаю лобби в игре…';
-            g.text = `${share}Бот открывает кастомную игру в Deadlock — это несколько секунд. Потом у игроков появится кнопка «Подключиться к лобби».`;
+            g.text = `${share}Бот открывает кастомную игру в Deadlock — обычно это несколько секунд; если сервис бота ответит сбоем, сайт сам попробует ещё дважды. Потом у игроков появится кнопка «Подключиться к лобби».`;
             g.btns = [P('lobby_bot', '<span class="spin"></span><span>Создаю лобби…</span>', ' disabled')];
           } else if (st.lobby_err) {
             g.title = 'Лобби в игре не создалось';
-            g.text = `${esc(st.lobby_err)}. ${share}Попробуй ещё раз — или создай лобби в игре сам и введи код.`;
-            g.btns = manual;
+            g.text = `${esc(st.lobby_err)}. ${share}Нажми «Попробовать ещё раз» через минуту — или создай лобби в игре сам и введи код.`;
+            g.btns = [making ? manual[0] : P('lobby_bot', 'Попробовать ещё раз'), manual[1]];
           } else {
             const test = st.seats.some((u) => card(u).bot);
             g.text = `${share}${test ? 'С тестовыми игроками лобби в игре само не создаётся: настоящих лобби бот даёт немного. Нажми кнопку, если хочешь проверить и этот шаг.'
@@ -987,14 +987,22 @@ export function mountEvent(root, id, opt) {
         ? btn('draft_go', `${step.t === 'ban' ? 'Забанить' : rev ? 'Отдать сопернику' : 'Взять'}: ${esc(heroName(selHero))}`, 'primary xl')
         : `<span class="dim">Выбери героя ниже${isHost() && meId() !== capUid && capUid ? ': ты ходишь за ' + nm(capUid) : ''}</span>`;
     } else if (step) go = '<span class="dim">Ждём хода капитана</span>';
+    // подсказка на ходу бана: кого сегодня не забанить — чтобы капитан не искал их в сетке
+    const nobLine = !d.done && step && step.t === 'ban' && (d.nobans || []).length
+      ? `<div class="dnob"><span>За сутки их банили дважды — сегодня банить нельзя:</span>${d.nobans.map((h) => `<i title="${esc(heroName(h))}">${heroImg(h, 'm')}</i>`).join('')}</div>` : '';
+    // Кого за сутки уже банили дважды (владелец 24.11: «запретить банить одного и того же героя более двух раз в сутки»):
+    // на ходу бана их не выбрать, брать — можно. Список даёт сервер при начале драфта (draft.nobans).
+    const nob = new Set(d.nobans || []);
+    const banStep = !!step && step.t === 'ban';
     const tiles = d.done ? '' : meta.heroes.map((h) => {
       const ban = banned.has(h.id);
       const by = taken.a.has(h.id) ? 'a' : taken.b.has(h.id) ? 'b' : null;
+      const capped = banStep && !ban && !by && nob.has(h.id);
       // одинаковые герои разрешены — чужой выбор не мешает, повторяться нельзя только в своей команде
-      const off = ban || (step.t === 'pick' && (st.settings.dup ? taken[forTeam(step)].has(h.id) : !!by));
+      const off = ban || capped || (step.t === 'pick' && (st.settings.dup ? taken[forTeam(step)].has(h.id) : !!by));
       const cls = [off ? 'off' : '', selHero === h.id ? 'sel' : '', can ? '' : 'idle'].join(' ');
-      const mark = ban ? '<em class="x">бан</em>' : by ? `<em class="${by}">взят</em>` : '';
-      return `<button class="hcard ${cls}" data-hero="${h.id}" ${can && !off ? '' : 'tabindex="-1"'}>
+      const mark = ban ? '<em class="x">бан</em>' : by ? `<em class="${by}">взят</em>` : capped ? '<em class="lim">2 бана</em>' : '';
+      return `<button class="hcard ${cls}" data-hero="${h.id}" ${can && !off ? '' : 'tabindex="-1"'}${capped ? ' title="За сутки этого героя уже банили дважды — банить нельзя, брать можно"' : ''}>
         ${h.card || h.icon ? `<img src="${esc(h.card || h.icon)}" alt="" loading="lazy">` : ''}<span>${esc(h.name)}</span>${mark}</button>`;
     }).join('');
     return `<section class="card draft2">${rev && !d.done ? '<div class="dnote">Обратный драфт: капитаны выбирают героев сопернику. В колонке команды — то, на чём ей играть.</div>' : ''}${d.done ? '' : `<div class="dstrip">${strip}</div>`}
@@ -1002,7 +1010,7 @@ export function mountEvent(root, id, opt) {
       <div class="dboard"><div class="dside a"><div class="dpicks" style="--n:${Math.max(count('a'), 1)}">${picks('a')}</div><div class="dbans">${d.done ? '' : reserve('a')}${bans('a')}</div></div>
         <div class="dmid">${mid}</div>
         <div class="dside b"><div class="dpicks" style="--n:${Math.max(count('b'), 1)}">${picks('b')}</div><div class="dbans">${bans('b')}${d.done ? '' : reserve('b')}</div></div></div>
-      ${d.done ? '' : `<div class="dgo">${go}</div><div class="hgrid2">${tiles}</div>`}</section>`;
+      ${d.done ? '' : `<div class="dgo">${go}</div>${nobLine}<div class="hgrid2">${tiles}</div>`}</section>`;
   }
 
   // После драфта: герои каждой команды. Игрок нажимает на героя своей команды и занимает его — так команды
@@ -1466,7 +1474,7 @@ export function mountEvent(root, id, opt) {
     lobby_bot: async () => {
       making = true;
       render();
-      try { await act('lobby_bot'); } finally { making = false; render(); }
+      try { await act('lobby_bot', null, true); } finally { making = false; render(); }
     },
     lobby_manual: () => codeModal(),
     lobby_close: () => act('lobby_close'),
