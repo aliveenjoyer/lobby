@@ -1604,3 +1604,54 @@ a.cs-who:hover b { text-decoration: underline; text-underline-offset: 3px; }
 }
 @media (max-width: 480px) { .slot .mains { display: none; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation-duration: 0s !important; } }
+
+/* ---------- мини-плеер радио Encore FM (js/radio.js): кнопка в правом нижнем углу, окошко с плеером радио */
+.rdo { position: fixed; right: 18px; bottom: 18px; z-index: 45; font-family: inherit; }
+.rdo-pill { display: flex; align-items: center; gap: 11px; max-width: 320px; height: 52px; padding: 0 8px 0 14px; border: 0; border-radius: 16px; cursor: pointer; color: var(--text);
+  background: rgba(22, 21, 20, .92); backdrop-filter: blur(12px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), 0 0 0 1px rgba(255, 255, 255, .06), 0 18px 40px -12px rgba(0, 0, 0, .8);
+  transition: transform .15s, box-shadow .2s; text-align: left; }
+.rdo-pill:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), 0 0 0 1px rgba(255, 179, 71, .35), 0 18px 44px -10px rgba(255, 138, 30, .35); }
+.rdo-pill[hidden], .rdo-card[hidden] { display: none; }
+.rdo-eq { display: inline-flex; align-items: flex-end; gap: 2.5px; height: 18px; flex: none; }
+.rdo-eq i { width: 3.5px; border-radius: 2px; background: #ffb347; box-shadow: 0 0 8px rgba(255, 179, 71, .55); transform-origin: bottom; height: 50%; }
+.rdo-eq i:nth-child(2) { height: 100%; } .rdo-eq i:nth-child(3) { height: 70%; }
+.rdo-pill.on-air .rdo-eq i { animation: rdo-eq 1.3s ease-in-out infinite; }
+.rdo-pill.on-air .rdo-eq i:nth-child(2) { animation-delay: -.45s; } .rdo-pill.on-air .rdo-eq i:nth-child(3) { animation-delay: -.8s; }
+@keyframes rdo-eq { 0%, 100% { transform: scaleY(.4); } 50% { transform: scaleY(1); } }
+.rdo-t { display: grid; gap: 1px; min-width: 0; }
+.rdo-t b { font-size: 13.5px; font-weight: 700; }
+.rdo-t small { font-size: 12px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 210px; }
+.rdo-go { width: 36px; height: 36px; flex: none; display: grid; place-items: center; border-radius: 11px; color: #1b0e00; background: linear-gradient(180deg, #ffc56b, #ff8a1e); }
+.rdo-go svg { width: 16px; height: 16px; }
+.rdo-card { width: 380px; border-radius: 18px; overflow: hidden; background: #121110; box-shadow: 0 0 0 1px rgba(255, 255, 255, .07), 0 30px 70px -18px rgba(0, 0, 0, .9); animation: rdo-in .22s ease; }
+@keyframes rdo-in { from { opacity: 0; transform: translateY(10px); } }
+.rdo-head { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 6px 0 14px; font-size: 13px; background: #191817; }
+.rdo-head b { font-weight: 700; }
+.rdo-head a { color: var(--dim); text-decoration: none; font-size: 12.5px; padding: 6px 8px; border-radius: 8px; }
+.rdo-head a:hover { color: var(--text); background: rgba(255, 255, 255, .06); }
+.rdo-sp { flex: 1; }
+.rdo-x { width: 30px; height: 30px; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--dim); cursor: pointer; }
+.rdo-x:hover { color: var(--text); background: rgba(255, 255, 255, .07); }
+.rdo-x svg { width: 15px; height: 15px; }
+.rdo-frame iframe { display: block; width: 380px; height: 432px; border: 0; }
+.rdo-head .rdo-eq { height: 14px; }
+.rdo-head .rdo-eq i { width: 3px; }
+.rdo-card.playing .rdo-eq i { animation: rdo-eq 1.3s ease-in-out infinite; }
+.rdo-card.playing .rdo-eq i:nth-child(2) { animation-delay: -.45s; } .rdo-card.playing .rdo-eq i:nth-child(3) { animation-delay: -.8s; }
+.rdo-track { display: none; min-width: 0; font-size: 12.5px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rdo-min { width: 30px; height: 30px; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--dim); cursor: pointer; }
+.rdo-min:hover { color: var(--text); background: rgba(255, 255, 255, .07); }
+.rdo-min svg { width: 15px; height: 15px; }
+/* свёрнуто: одна полоска с треком, плеер остаётся загруженным и играет */
+.rdo-card.min { width: 340px; cursor: pointer; }
+.rdo-card.min .rdo-head { height: 48px; }
+.rdo-card.min .rdo-name, .rdo-card.min .rdo-open { display: none; }
+.rdo-card.min .rdo-track { display: block; flex: 1; color: var(--text); font-size: 13px; }
+.rdo-card.min .rdo-sp { display: none; }
+.rdo-card.min .rdo-min svg { transform: rotate(0); }
+.rdo-card.min .rdo-frame { height: 0; overflow: hidden; }
+@media (max-width: 760px) {
+  .rdo { right: 12px; bottom: 12px; }
+  .rdo-pill { height: 46px; padding: 0 6px 0 12px; }
+  .rdo-t small { max-width: 140px; }
+}

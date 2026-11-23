@@ -7,7 +7,7 @@
 <meta name="description" content="Ведущий создаёт лобби, зрители записываются, капитаны набирают команды, потом драфт героев и код для входа в игру.">
 <meta name="theme-color" content="#0a0a0a">
 <!-- Что странице разрешено грузить. Скрипты — только свои файлы: вставленный в страницу чужой код не выполнится и не доберётся до входа пользователя. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://173-249-26-11.sslip.io:8444; object-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://173-249-26-11.sslip.io:8444; frame-src https://radio.aliveenjoyer.art; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta property="og:title" content="Лобби — кастомки Deadlock со зрителями">
 <meta property="og:description" content="Запись, капитаны, драфт героев и код лобби — на одной странице.">
 <meta property="og:type" content="website">
@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/app.css?v=20261123012950">
+<link rel="stylesheet" href="css/app.css?v=20261123075649">
 </head>
 <body>
 <header class="top"><div class="wrap" id="top"><a class="brand" href="#/"><i></i><span>Лобби</span></a></div></header>
@@ -32,7 +32,8 @@
 <div id="modal"></div>
 <div id="toast" aria-live="polite"></div>
 <noscript><p style="padding:24px">Сайту нужен JavaScript.</p></noscript>
-<script type="module" src="js/main.js?v=20261123012950"></script>
-<script src="js/visit.js?v=20261123012950" defer></script>
+<script type="module" src="js/main.js?v=20261123075649"></script>
+<script src="js/visit.js?v=20261123075649" defer></script>
+<script type="module" src="js/radio.js?v=20261123075649"></script>
 </body>
 </html>
